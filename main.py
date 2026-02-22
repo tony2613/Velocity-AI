@@ -35,11 +35,12 @@ def get_ocr():
     if ocr_instance is None:
         print("Loading PaddleOCR model (Lazy Load)...")
         try:
-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True)
+            # Force PP-OCRv4 to avoid heavy v5 server model downloads that cause timeouts
+            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True, ocr_version='PP-OCRv4', show_log=False)
             print("PaddleOCR loaded successfully with MKLDNN enabled.")
         except Exception as e:
             print(f"Failed to load with MKLDNN, falling back to safe mode: {e}")
-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False)
+            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False, ocr_version='PP-OCRv4', show_log=False)
     return ocr_instance
 
 def perform_ocr_on_file(file_path):
@@ -269,6 +270,11 @@ def extract(file: UploadFile = File(...)):
                 if len(t) > 50:
                     print(f"DEBUG: Page {page_num + 1}: Text detected ({len(t)} chars). Using extracted text.")
                     text += f"\n\n{t}\n"
+                    
+                    # If it's a strongly text-based page, skip OCRing embedded images to prevent timeouts
+                    if len(t) > 200:
+                        print(f"DEBUG: Skipping image OCR for pure text page {page_num + 1} to save resources.")
+                        continue
                     
                     # 2. Extract images from the page for OCR (Mixed content)
                     try:
