@@ -11,7 +11,7 @@ sleep 5
 
 # Start Node.js Server
 echo "Starting Node.js Server..."
-cross-env NODE_ENV=production node dist/index.js &
+NODE_ENV=production node dist/index.js &
 NODE_PID=$!
 
 # Trap SIGTERM/SIGINT to kill both processes
