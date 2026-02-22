@@ -19,7 +19,7 @@ COPY package*.json ./
 COPY requirements.txt ./
 
 # Install Dependencies (using install instead of ci avoids cross-platform package-lock issues)
-RUN npm install
+RUN npm install --legacy-peer-deps
 # Use --break-system-packages if pip complains on newer debian/ubuntu or use venv
 # Here assuming simple container environment where system install is fine or handled
 RUN pip3 install -r requirements.txt --break-system-packages
