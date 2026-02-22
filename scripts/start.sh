@@ -11,7 +11,7 @@ sleep 5
 
 # Start Node.js Server
 echo "Starting Node.js Server on PORT ${PORT:-5000}..."
-NODE_ENV=production node dist/index.js 2>&1 | tee node.log &
+NODE_ENV=production node --max-old-space-size=256 dist/index.js 2>&1 | tee node.log &
 NODE_PID=$!
 
 # Wait briefly to see if Node crashes instantly

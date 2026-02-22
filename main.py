@@ -28,21 +28,26 @@ cloudinary.config(
   secure = True
 )
 
-# Initialize PaddleOCR
-# enable_mkldnn=True: Optimizing for performance again (since we are testing stability)
-print("Loading PaddleOCR model (Performance Mode)...")
-try:
-    ocr = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True)
-    print("PaddleOCR loaded successfully with MKLDNN enabled.")
-except Exception as e:
-    print(f"Failed to load with MKLDNN, falling back to safe mode: {e}")
-    ocr = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False)
+ocr_instance = None
+
+def get_ocr():
+    global ocr_instance
+    if ocr_instance is None:
+        print("Loading PaddleOCR model (Lazy Load)...")
+        try:
+            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True)
+            print("PaddleOCR loaded successfully with MKLDNN enabled.")
+        except Exception as e:
+            print(f"Failed to load with MKLDNN, falling back to safe mode: {e}")
+            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False)
+    return ocr_instance
 
 def perform_ocr_on_file(file_path):
     """Helper to run OCR on a file path directly. 
     This is more stable than passing numpy arrays on Windows."""
     try:
         # cls=False because we disabled angle classifier in init, but explicit is better
+        ocr = get_ocr()
         result = ocr.ocr(file_path, cls=False)
         text = ""
         if result and result[0]:
@@ -180,6 +185,7 @@ def process_pptx(content):
                         # Also run OCR for accessibility/context
                         try:
                             # We use the same method as the main extraction flow
+                            ocr = get_ocr()
                             result = ocr.ocr(image_path)
                             
                             img_text = ""
