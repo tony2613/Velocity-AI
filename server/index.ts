@@ -95,7 +95,12 @@ app.use((req, res, next) => {
   }
 
   // Always use PORT env or default 5000
-  const port = parseInt(process.env.PORT || "5000", 10);
+  let port = parseInt(process.env.PORT || "5000", 10);
+  if (isNaN(port) || port <= 0 || port >= 65536) {
+    console.warn(`[Node.js] WARNING: process.env.PORT (${process.env.PORT}) is not a valid port number. Stripping corrupted value and falling back to port 5000.`);
+    port = 5000;
+  }
+
   console.log(`[Node.js] Attempting to bind to 0.0.0.0:${port}...`);
   server.listen(
     {
