@@ -68,8 +68,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  console.log("[Node.js] Starting server startup sequence...");
+
   // register routes (your routes.ts should export registerRoutes)
+  console.log("[Node.js] Calling registerRoutes...");
   const server = await registerRoutes(app);
+  console.log("[Node.js] registerRoutes completed.");
 
   // Express error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -81,14 +85,18 @@ app.use((req, res, next) => {
   });
 
   // In development use vite middleware; in production serve static files
+  console.log(`[Node.js] Environment is: ${app.get("env")}`);
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
+    console.log("[Node.js] Calling serveStatic...");
     serveStatic(app);
+    console.log("[Node.js] serveStatic completed.");
   }
 
   // Always use PORT env or default 5000
   const port = parseInt(process.env.PORT || "5000", 10);
+  console.log(`[Node.js] Attempting to bind to 0.0.0.0:${port}...`);
   server.listen(
     {
       port,
@@ -98,4 +106,7 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
-})();
+})().catch(err => {
+  console.error("FATAL ERROR IN SERVER STARTUP:", err);
+  process.exit(1);
+});
