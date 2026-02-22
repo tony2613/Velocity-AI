@@ -4,8 +4,6 @@ services:
     env: docker
     plan: free
     region: oregon 
-    buildCommand: docker build -t velocity-ai .
-    startCommand: docker run -p 5000:5000 velocity-ai
     envVars:
       - key: DATABASE_URL
         sync: false
