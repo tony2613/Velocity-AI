@@ -133,6 +133,12 @@ export function setupAuth(app: Express) {
                 html: emailHtml
             }).catch((err: unknown) => console.error("Failed to send reset email:", err));
 
+            // Log the reset link to the console for testing purposes during development
+            console.log("\n==============================================");
+            console.log(" PASSWORD RESET LINK GENERATED");
+            console.log(" Click here ->", resetLink);
+            console.log("==============================================\n");
+
             res.status(200).send("If an account exists, a reset email has been sent.");
         } catch (err) {
             next(err);

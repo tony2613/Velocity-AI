@@ -2,6 +2,7 @@ FROM node:20-slim
 
 # Install Python and system dependencies for OCR
 RUN apt-get update && apt-get install -y \
+    build-essential \
     python3 \
     python3-pip \
     libgl1-mesa-glx \
@@ -17,8 +18,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY requirements.txt ./
 
-# Install Dependencies
-RUN npm ci
+# Install Dependencies (using install instead of ci avoids cross-platform package-lock issues)
+RUN npm install
 # Use --break-system-packages if pip complains on newer debian/ubuntu or use venv
 # Here assuming simple container environment where system install is fine or handled
 RUN pip3 install -r requirements.txt --break-system-packages
