@@ -10,7 +10,7 @@ echo "Waiting for Python service to start..."
 sleep 5
 
 # Start Node.js Server
-echo "Starting Node.js Server..."
+echo "Starting Node.js Server on PORT ${PORT:-5000}..."
 NODE_ENV=production node dist/index.js &
 NODE_PID=$!
 
