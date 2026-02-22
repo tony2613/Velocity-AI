@@ -363,6 +363,9 @@ export default function Navbar() {
                 <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.profile")}
                 </Link>
+                <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block flex items-center gap-2 text-primary">
+                  <Sparkles className="h-4 w-4" /> {t("nav.upgrade")}
+                </Link>
                 <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.settings")}
                 </Link>
