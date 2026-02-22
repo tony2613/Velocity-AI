@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /notes
+Disallow: /upload
+Disallow: /profile
+Disallow: /settings
+Disallow: /summary/
+Disallow: /quiz/
+Disallow: /quizzes
+Disallow: /auth
+
+Sitemap: https://velocityai.app/sitemap.xml

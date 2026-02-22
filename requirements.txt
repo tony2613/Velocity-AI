@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+requests
+pillow
+pymupdf
+sumy
+python-multipart
+numpy
+nltk
+paddleocr
+paddlepaddle
+opencv-python-headless
+python-pptx
+cloudinary

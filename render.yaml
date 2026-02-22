@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: velocity-ai
+    env: docker
+    plan: free
+    region: oregon 
+    buildCommand: docker build -t velocity-ai .
+    startCommand: docker run -p 5000:5000 velocity-ai
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OCR_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_ENGINE_ID
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: production

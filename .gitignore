@@ -1,0 +1,81 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build
+dist
+out
+build
+
+# Environment
+.env
+.env.local
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+error.log
+server_debug.log
+*.log
+
+# Editor
+.vscode
+.idea
+*.suo
+*.ntvs
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+coverage
+.nyc_output
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Debug/test/verification files
+debug_*.py
+debug_*.ts
+test_*.py
+test_*.ts
+test_*.pptx
+test_*.png
+test_*.txt
+verify_*.py
+verify_*.ts
+inspect_db.ts
+quick_test.py
+output.txt
+output_test.txt
+check_output.txt
+bad_test.pdf
+test.pdf
+
+# Uploads (user data)
+uploads/
+
+# Trained data files
+eng.traineddata
+
+# Misc
+GIT
+*.bak
+
+# Replit-specific (never commit these)
+.config/
+.local/
+.replit
+
+# Large asset files tracked by Replit
+attached_assets/
