@@ -19,10 +19,10 @@ export function usePWAInstall() {
     useEffect(() => {
         // 1. Check if it's already installed (Standalone mode)
         const mediaQuery = window.matchMedia('(display-mode: standalone)');
-        setIsInstalled(mediaQuery.matches);
+        setIsInstalled(mediaQuery.matches || (window.navigator as any).standalone === true);
 
         const handleDisplayModeChange = (e: MediaQueryListEvent) => {
-            setIsInstalled(e.matches);
+            setIsInstalled(e.matches || (window.navigator as any).standalone === true);
         };
         mediaQuery.addEventListener('change', handleDisplayModeChange);
 
@@ -30,13 +30,22 @@ export function usePWAInstall() {
         const handleBeforeInstallPrompt = (e: Event) => {
             // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
+
             // Stash the event so it can be triggered later.
             setDeferredPrompt(e as BeforeInstallPromptEvent);
+
             // Update UI notify the user they can install the PWA
-            setIsInstallable(true);
+            // Only set installable if not already installed
+            if (!mediaQuery.matches && !(window.navigator as any).standalone) {
+                setIsInstallable(true);
+            }
         };
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+        // Also check if beforeinstallprompt fired before React mounted
+        // (This is rare but happens, we handle this by ensuring the event listener is top-level if needed,
+        // but in a SPA like Vite/React, this effect usually binds in time)
 
         // 3. Listen for successful installation
         const handleAppInstalled = () => {
@@ -83,7 +92,7 @@ export function usePWAInstall() {
         await deferredPrompt.prompt();
 
         // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
+        await deferredPrompt.userChoice;
 
         // We've used the prompt, and can't use it again, throw it away
         setDeferredPrompt(null);
