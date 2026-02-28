@@ -346,6 +346,17 @@ export default function Navbar() {
                 </SheetContent>
               </Sheet>
 
+              {isInstallable && !isInstalled && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleInstallClick}
+                  className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 h-8 px-2"
+                >
+                  <Upload className="h-4 w-4 mr-1 rotate-180" />
+                  <span className="text-xs">Install</span>
+                </Button>
+              )}
               {user && (
                 <Button variant="ghost" size="icon" onClick={() => setShowMobileSearch(true)}>
                   <Search className="h-5 w-5" />
@@ -376,18 +387,6 @@ export default function Navbar() {
                 <Link href="/quizzes" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.quizzes")}
                 </Link>
-                {isInstallable && !isInstalled && (
-                  <Button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleInstallClick();
-                    }}
-                    variant="outline"
-                    className="w-full justify-start text-primary border-primary/30 bg-primary/10 mb-2"
-                  >
-                    <Upload className="mr-2 h-4 w-4 rotate-180" /> Install App
-                  </Button>
-                )}
                 <Link href="/upload" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block flex items-center gap-2">
                   <Upload className="h-4 w-4" /> {t("nav.upload")}
                 </Link>
