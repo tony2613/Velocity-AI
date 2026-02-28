@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -29,6 +30,8 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
+  const { isInstallable, isInstalled, isIOS: pwaIOS, promptInstall } = usePWAInstall();
+  const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -71,6 +74,13 @@ export default function Navbar() {
 
   const handleResultClick = (result: any) => {
     window.open(result.link, "_blank");
+  };
+
+  const handleInstallClick = async () => {
+    const showIosInstructions = await promptInstall();
+    if (showIosInstructions) {
+      setShowIOSInstallModal(true);
+    }
   };
 
   return (
@@ -211,6 +221,16 @@ export default function Navbar() {
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
             <div className="hidden md:flex items-center gap-2">
+              {isInstallable && !isInstalled && (
+                <Button
+                  onClick={handleInstallClick}
+                  variant="default"
+                  className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 mr-2"
+                >
+                  <Upload className="h-4 w-4 mr-2 rotate-180" />
+                  Install App
+                </Button>
+              )}
               <ThemeToggle />
               {user ? (
                 <>
@@ -356,6 +376,18 @@ export default function Navbar() {
                 <Link href="/quizzes" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.quizzes")}
                 </Link>
+                {isInstallable && !isInstalled && (
+                  <Button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleInstallClick();
+                    }}
+                    variant="outline"
+                    className="w-full justify-start text-primary border-primary/30 bg-primary/10 mb-2"
+                  >
+                    <Upload className="mr-2 h-4 w-4 rotate-180" /> Install App
+                  </Button>
+                )}
                 <Link href="/upload" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block flex items-center gap-2">
                   <Upload className="h-4 w-4" /> {t("nav.upload")}
                 </Link>
@@ -403,6 +435,36 @@ export default function Navbar() {
                 Read More <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showIOSInstallModal} onOpenChange={setShowIOSInstallModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">Install Velocity AI</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
+            <div className="p-4 bg-muted/50 rounded-full">
+              <Upload className="h-8 w-8 text-primary" style={{ transform: "rotate(180deg)" }} />
+            </div>
+            <h3 className="font-semibold px-4 text-lg">Add to your Home Screen</h3>
+            <p className="text-sm text-muted-foreground px-6">
+              Install Velocity AI on your iPhone or iPad for the best full-screen experience and quick access.
+            </p>
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
+              <div className="flex items-center gap-3">
+                <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
+                <span>Tap the <strong>Share</strong> button at the bottom of Safari.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
+                <span>Scroll down and tap <strong>Add to Home Screen</strong>.</span>
+              </div>
+            </div>
+            <Button className="w-full mt-4" onClick={() => setShowIOSInstallModal(false)}>
+              Got it
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
