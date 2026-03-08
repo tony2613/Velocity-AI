@@ -1,4 +1,6 @@
-// import { Link } from "wouter"; // Unused
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import HowItWorks from "@/components/HowItWorks";
@@ -28,6 +30,14 @@ const homeStructuredData = {
 
 export default function Home() {
   // Donation popup removed per user request
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (user) {
+      setLocation("/dashboard");
+    }
+  }, [user, setLocation]);
 
   return (
     <div className="min-h-screen">

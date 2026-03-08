@@ -1,12 +1,23 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Lock, ArrowRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import GuestUploadZone from "@/components/GuestUploadZone";
 import SEO from "@/components/SEO";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
 
 export default function GuestDemo() {
+    const { user } = useAuth();
+    const [, setLocation] = useLocation();
+
+    useEffect(() => {
+        if (user) {
+            setLocation("/dashboard");
+        }
+    }, [user, setLocation]);
+
     return (
         <div className="min-h-screen bg-background">
             <SEO

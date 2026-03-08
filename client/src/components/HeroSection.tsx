@@ -2,9 +2,11 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function HeroSection() {
   const { t } = useLanguage();
+  const { user } = useAuth();
 
   const handleHowItWorksClick = () => {
     const element = document.getElementById("how-it-works");
@@ -32,7 +34,7 @@ export default function HeroSection() {
               {t("hero.subtitle")}
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/demo">
+              <Link href={user ? "/dashboard" : "/demo"}>
                 <a data-testid="button-get-started">
                   <Button size="lg" className="gap-2">
                     {t("hero.cta_primary")}

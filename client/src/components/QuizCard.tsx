@@ -29,14 +29,12 @@ export default function QuizCard({
     const selected = parseInt(selectedAnswer);
     setIsCorrect(selected === correctAnswer);
     setSubmitted(true);
-    console.log("Answer submitted:", { selectedAnswer, correctAnswer, isCorrect: selected === correctAnswer });
   };
 
   const handleNext = () => {
     setSelectedAnswer("");
     setSubmitted(false);
     setIsCorrect(null);
-    console.log("Moving to next question");
   };
 
   const progress = (questionNumber / totalQuestions) * 100;
@@ -58,15 +56,14 @@ export default function QuizCard({
           {options.map((option, index) => (
             <div
               key={index}
-              className={`flex items-start gap-3 p-4 rounded-lg border ${
-                submitted
+              className={`flex items-start gap-3 p-4 rounded-lg border ${submitted
                   ? index === correctAnswer
                     ? "border-green-500 bg-green-500/10"
                     : selectedAnswer === index.toString()
-                    ? "border-red-500 bg-red-500/10"
-                    : "border-border"
+                      ? "border-red-500 bg-red-500/10"
+                      : "border-border"
                   : "border-border hover-elevate"
-              }`}
+                }`}
               data-testid={`option-${index}`}
             >
               <RadioGroupItem value={index.toString()} id={`option-${index}`} />

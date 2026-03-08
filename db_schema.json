@@ -1,6 +1,6 @@
 [
   {
-    "column_name": "last_search_date",
+    "column_name": "reset_token_expiry",
     "data_type": "timestamp without time zone"
   },
   {
@@ -16,8 +16,20 @@
     "data_type": "integer"
   },
   {
-    "column_name": "id",
-    "data_type": "character varying"
+    "column_name": "last_search_date",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "is_verified",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "verification_token",
+    "data_type": "text"
+  },
+  {
+    "column_name": "reset_token",
+    "data_type": "text"
   },
   {
     "column_name": "username",
@@ -30,5 +42,13 @@
   {
     "column_name": "subscription_tier",
     "data_type": "text"
+  },
+  {
+    "column_name": "email",
+    "data_type": "text"
+  },
+  {
+    "column_name": "id",
+    "data_type": "character varying"
   }
 ]

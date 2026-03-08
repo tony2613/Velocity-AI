@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Search, X, Loader2, Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,7 +30,7 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const { isInstallable, isInstalled, isIOS: pwaIOS, promptInstall } = usePWAInstall();
+  const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -148,7 +148,7 @@ export default function Navbar() {
                 <div className="relative flex items-center">
                   <Input
                     placeholder={t("nav.search_placeholder")}
-                    className="w-full pl-11 pr-12 h-11 rounded-full bg-muted/30 focus:bg-background/80"
+                    className="w-full pl-11 pr-20 h-11 rounded-full bg-muted/30 focus:bg-background/80"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyDown={(e) => {
@@ -300,7 +300,7 @@ export default function Navbar() {
                     <SheetHeader className="sr-only">
                       <SheetTitle>Search</SheetTitle>
                     </SheetHeader>
-                    <div className="flex items-center gap-2 h-16 px-4 border-b shrink-0">
+                    <div className="flex items-center gap-2 h-16 pl-4 pr-12 border-b shrink-0">
                       <form
                         className="flex-1 relative group"
                         onSubmit={(e) => {
@@ -426,6 +426,7 @@ export default function Navbar() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{selectedResult?.title}</DialogTitle>
+            <DialogDescription className="sr-only">Details about the search result</DialogDescription>
           </DialogHeader>
           <div className="mt-4">
             <p>{selectedResult?.snippet}</p>
@@ -442,6 +443,7 @@ export default function Navbar() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">Install Velocity AI</DialogTitle>
+            <DialogDescription className="sr-only">Instructions on how to install the app on iOS devices</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
             <div className="p-4 bg-muted/50 rounded-full">
