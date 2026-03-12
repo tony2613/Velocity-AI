@@ -34,7 +34,9 @@ export function setupAuth(app: Express) {
         saveUninitialized: false,
         cookie: {
             maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+            httpOnly: true,
             secure: app.get("env") === "production",
+            sameSite: app.get("env") === "production" ? "none" : "lax",
         },
     };
 
@@ -46,13 +48,21 @@ export function setupAuth(app: Express) {
     passport.use(
         new LocalStrategy(async (username, password, done) => {
             try {
+                console.log(`[AUTH DEBUG] Login attempt for username: "${username}"`);
                 const user = await storage.getUserByUsername(username);
-                if (!user || !(await comparePasswords(password, user.password))) {
+                if (!user) {
+                    console.log(`[AUTH DEBUG] User "${username}" NOT FOUND in database`);
                     return done(null, false);
-                } else {
-                    return done(null, user);
                 }
+                const passwordMatch = await comparePasswords(password, user.password);
+                if (!passwordMatch) {
+                    console.log(`[AUTH DEBUG] Password MISMATCH for user "${username}"`);
+                    return done(null, false);
+                }
+                console.log(`[AUTH DEBUG] Login SUCCESS for user "${username}"`);
+                return done(null, user);
             } catch (err) {
+                console.error(`[AUTH DEBUG] Login ERROR for user "${username}":`, err);
                 return done(err);
             }
         }),
@@ -163,17 +173,39 @@ export function setupAuth(app: Express) {
         }
     });
 
-    app.post("/api/login", passport.authenticate("local"), (req, res) => {
-        // Log Login
-        storage.logUsage({
-            userId: (req.user as any).id,
-            action: "LOGIN",
-            tokensInput: 0,
-            tokensOutput: 0,
-            cost: 0,
-            metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'] }),
-        });
-        res.status(200).json(req.user);
+    app.post("/api/login", (req, res, next) => {
+        console.log(`[AUTH DEBUG] Login attempt - body keys: ${Object.keys(req.body || {})}, username: "${req.body?.username}"`);
+
+        passport.authenticate("local", (err: any, user: any, info: any) => {
+            console.log(`[AUTH DEBUG] Passport result - err: ${err}, user: ${!!user}, info: ${JSON.stringify(info)}`);
+
+            if (err) {
+                console.error("[AUTH DEBUG] Passport error:", err);
+                return next(err);
+            }
+            if (!user) {
+                console.log("[AUTH DEBUG] Authentication failed - no user returned");
+                return res.status(401).json({ message: info?.message || "Invalid credentials" });
+            }
+
+            req.login(user, (loginErr) => {
+                if (loginErr) {
+                    console.error("[AUTH DEBUG] Session login error:", loginErr);
+                    return next(loginErr);
+                }
+                console.log(`[AUTH DEBUG] Login successful for user: ${user.username}`);
+                // Log Login
+                storage.logUsage({
+                    userId: user.id,
+                    action: "LOGIN",
+                    tokensInput: 0,
+                    tokensOutput: 0,
+                    cost: 0,
+                    metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'] }),
+                });
+                res.status(200).json(user);
+            });
+        })(req, res, next);
     });
 
     app.post("/api/logout", (req, res, next) => {
