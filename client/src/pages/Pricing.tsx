@@ -15,6 +15,8 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import upiQrCode from "@/assets/upi-qr.png";
+import upiQrCode99 from "@/assets/upi-qr99.png.jpeg";
+import upiQrCode249 from "@/assets/upi-qr249.png.jpeg";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -239,7 +241,13 @@ export default function Pricing() {
                         {/* QR Code - large and crisp for scanning */}
                         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
                             <img 
-                                src={upiQrCode} 
+                                src={
+                                    selectedTier?.value === "pro"
+                                        ? upiQrCode99
+                                        : selectedTier?.value === "elite"
+                                        ? upiQrCode249
+                                        : upiQrCode
+                                } 
                                 alt="UPI QR Code - Scan to Pay" 
                                 className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
                                 style={{ imageRendering: 'crisp-edges' }}
