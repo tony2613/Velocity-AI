@@ -135,3 +135,24 @@ export const insertUsageLogSchema = createInsertSchema(usageLogs).omit({
 
 export type InsertUsageLog = z.infer<typeof insertUsageLogSchema>;
 export type UsageLog = typeof usageLogs.$inferSelect;
+
+import { serial } from "drizzle-orm/pg-core";
+
+export const paymentRequests = pgTable("payment_requests", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  tier: text("tier").notNull(),
+  amount: text("amount").notNull(),
+  transactionId: text("transaction_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).omit({
+  id: true,
+  status: true,
+  createdAt: true,
+});
+
+export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
+export type PaymentRequest = typeof paymentRequests.$inferSelect;

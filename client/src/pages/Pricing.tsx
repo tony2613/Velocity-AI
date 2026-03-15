@@ -7,6 +7,16 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import SEO from "@/components/SEO";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import upiQrCode from "@/assets/upi-qr.png";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const tiers = [
     {
@@ -65,22 +75,27 @@ export default function Pricing() {
     const { toast } = useToast();
     const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
-    const upgradeMutation = useMutation({
-        mutationFn: async (tier: string) => {
-            const res = await apiRequest("POST", "/api/debug/set-tier", { tier });
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [selectedTier, setSelectedTier] = useState<typeof tiers[0] | null>(null);
+    const [transactionId, setTransactionId] = useState("");
+
+    const paymentMutation = useMutation({
+        mutationFn: async (data: { tier: string, transactionId: string, amount: string }) => {
+            const res = await apiRequest("POST", "/api/payment-request", data);
             return res.json();
         },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        onSuccess: () => {
             toast({
-                title: "Subscription Updated",
-                description: `You are now on the ${data.tier} plan!`,
+                title: "Payment Requested",
+                description: "Your transaction ID has been submitted for verification. You will be upgraded soon!",
             });
+            setPaymentModalOpen(false);
+            setTransactionId("");
             setLoadingTier(null);
         },
         onError: (error: Error) => {
             toast({
-                title: "Update failed",
+                title: "Submission failed",
                 description: error.message,
                 variant: "destructive",
             });
@@ -88,7 +103,7 @@ export default function Pricing() {
         },
     });
 
-    const handleUpgrade = (tier: string) => {
+    const handleUpgradeClick = (tier: typeof tiers[0]) => {
         if (!user) {
             toast({
                 title: "Login Required",
@@ -96,8 +111,38 @@ export default function Pricing() {
             });
             return;
         }
-        setLoadingTier(tier);
-        upgradeMutation.mutate(tier);
+        
+        if (tier.value === 'free') return; // Cannot explicitly buy free
+        
+        setSelectedTier(tier);
+        setPaymentModalOpen(true);
+    };
+
+    const submitPayment = () => {
+        if (!selectedTier || !transactionId) {
+            toast({
+                title: "Missing Information",
+                description: "Please enter your 12-digit transaction ID.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        if (transactionId.length < 10) {
+            toast({
+                title: "Invalid ID",
+                description: "Please enter a valid UPI transaction ID (UTR).",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setLoadingTier(selectedTier.value);
+        paymentMutation.mutate({
+            tier: selectedTier.value,
+            transactionId: transactionId,
+            amount: selectedTier.price.replace('₹', '')
+        });
     };
 
     return (
@@ -162,14 +207,16 @@ export default function Pricing() {
                                             className="w-full"
                                             variant={isCurrent ? "outline" : (tier.popular ? "default" : "secondary")}
                                             disabled={isCurrent || loadingTier === tier.value}
-                                            onClick={() => handleUpgrade(tier.value)}
+                                            onClick={() => handleUpgradeClick(tier)}
                                         >
                                             {loadingTier === tier.value ? (
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                             ) : isCurrent ? (
                                                 "Current Plan"
+                                            ) : tier.value === 'free' ? (
+                                                "Included"
                                             ) : (
-                                                user ? "Upgrade" : "Log in to Upgrade"
+                                                user ? "Buy Now" : "Log in to Upgrade"
                                             )}
                                         </Button>
                                     </CardFooter>
@@ -179,6 +226,67 @@ export default function Pricing() {
                     </div>
                 </div>
             </div>
+
+            <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+                <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                    <DialogHeader className="text-center">
+                        <DialogTitle className="text-xl">Complete Your Upgrade</DialogTitle>
+                        <DialogDescription className="text-sm">
+                            Upgrade to <strong>{selectedTier?.name}</strong> for <strong>{selectedTier?.price}/month</strong>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col items-center space-y-4 sm:space-y-5 py-2 sm:py-4">
+                        {/* QR Code - large and crisp for scanning */}
+                        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
+                            <img 
+                                src={upiQrCode} 
+                                alt="UPI QR Code - Scan to Pay" 
+                                className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
+                                style={{ imageRendering: 'crisp-edges' }}
+                            />
+                        </div>
+                        
+                        <div className="text-center w-full space-y-1">
+                            <p className="font-semibold text-base sm:text-lg">Scan & Pay via UPI</p>
+                            <p className="text-muted-foreground text-xs font-mono bg-muted py-1 px-3 rounded inline-block select-all">tonylewiston2613@okaxis</p>
+                            <p className="text-xs text-muted-foreground mt-1">GPay · PhonePe · Paytm · Any UPI App</p>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="w-full flex items-center gap-3">
+                            <div className="flex-1 h-px bg-border" />
+                            <span className="text-xs text-muted-foreground">After paying, enter your UTR below</span>
+                            <div className="flex-1 h-px bg-border" />
+                        </div>
+
+                        <div className="w-full space-y-2">
+                            <Label htmlFor="utr" className="text-sm font-medium">UPI Transaction ID (UTR)</Label>
+                            <Input 
+                                id="utr" 
+                                placeholder="e.g. 412345678901" 
+                                value={transactionId}
+                                onChange={(e) => setTransactionId(e.target.value)}
+                                className="h-12 text-base sm:h-10 sm:text-sm"
+                                inputMode="numeric"
+                            />
+                            <p className="text-xs text-muted-foreground text-center">Find this 12-digit number in your payment app under transaction details.</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => setPaymentModalOpen(false)} className="h-11 sm:h-9">Cancel</Button>
+                        <Button 
+                            onClick={submitPayment} 
+                            disabled={loadingTier === selectedTier?.value || !transactionId}
+                            className="h-11 sm:h-9 text-base sm:text-sm"
+                        >
+                            {loadingTier === selectedTier?.value ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Submit Payment Proof
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

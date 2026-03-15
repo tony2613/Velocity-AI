@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertNoteSchema } from "@shared/schema";
+import { DrizzleError, eq } from "drizzle-orm";
+import { users, insertNoteSchema, paymentRequests } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
 import ocrPreprocessRouter from "./ocrPreprocess";
 import multer from "multer";
@@ -895,6 +896,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Debug endpoint to set user tier (FOR TESTING ONLY)
+  // TEMPORARY MANUAL PAYMENT FLOW ROUTES
+  app.post("/api/payment-request", isAuthenticated, async (req, res) => {
+    try {
+      const { tier, transactionId, amount } = req.body;
+      
+      if (!tier || !transactionId || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      await storage.db.insert(paymentRequests).values({
+        userId: req.user!.id,
+        tier,
+        transactionId,
+        amount
+      });
+
+      res.json({ message: "Payment request submitted successfully." });
+    } catch (error) {
+      console.error("Payment request error:", error);
+      res.status(500).json({ error: "Failed to submit payment request" });
+    }
+  });
+
+  app.post("/api/admin/approve-payment", isAuthenticated, async (req, res) => {
+    try {
+      // Basic admin check (could be improved later by adding an isAdmin flag)
+      // For now, only you will be hitting this endpoint from your script/postman
+      const { requestId, approve } = req.body;
+
+      if (!requestId) {
+        return res.status(400).json({ error: "requestId is required" });
+      }
+
+      // @ts-ignore
+      const request = await storage.db.query.paymentRequests.findFirst({
+        where: eq(paymentRequests.id, requestId)
+      });
+
+      if (!request) {
+        return res.status(404).json({ error: "Payment request not found" });
+      }
+
+      if (request.status !== 'pending') {
+        return res.status(400).json({ error: "Request is already processed" });
+      }
+
+      if (approve) {
+        // @ts-ignore
+        await storage.db.update(users)
+          .set({ subscriptionTier: request.tier })
+          .where(eq(users.id, request.userId));
+        
+        // Update request status
+        // @ts-ignore
+        await storage.db.update(paymentRequests)
+          .set({ status: 'approved' })
+          .where(eq(paymentRequests.id, requestId));
+          
+        res.json({ message: "Payment approved and user upgraded." });
+      } else {
+        // @ts-ignore
+        await storage.db.update(paymentRequests)
+          .set({ status: 'rejected' })
+          .where(eq(paymentRequests.id, requestId));
+          
+        res.json({ message: "Payment request rejected." });
+      }
+    } catch (error) {
+      console.error("Admin approve payment error:", error);
+      res.status(500).json({ error: "Failed to process payment request" });
+    }
+  });
+
+  // Keep this exclusively for local development testing, but maybe remove in prod later
   app.post("/api/debug/set-tier", isAuthenticated, async (req, res) => {
     try {
       const { tier } = req.body;
