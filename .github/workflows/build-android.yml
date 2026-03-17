@@ -27,10 +27,6 @@ jobs:
     - name: Install dependencies
       run: npm install --legacy-peer-deps
 
-    # For a fully dynamic web app wrapper, we just need Capacitor to generate the Android project
-    - name: Add Android platform
-      run: npx cap add android
-
     - name: Sync Capacitor
       run: npx cap sync android
 
