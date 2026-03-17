@@ -4,7 +4,22 @@ import FormData from "form-data";
 import sharp from "sharp";
 
 const OCR_API_KEY = process.env.OCR_API_KEY || "helloworld";
-const OCR_TIMEOUT_MS = 120000;
+const OCR_TIMEOUT_MS = 300000;
+
+async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
+  try {
+    // `pdf-parse` is CJS in many setups; dynamic import keeps it compatible here.
+    const mod: any = await import("pdf-parse");
+    const pdfParse = mod?.default ?? mod;
+    if (typeof pdfParse !== "function") return "";
+    const res = await pdfParse(buf);
+    const text = (res?.text || "").trim();
+    // If there is meaningful text, return it (avoids slow/size-limited OCR for non-scanned PDFs)
+    return text.length >= 30 ? text : "";
+  } catch {
+    return "";
+  }
+}
 
 // Load API keys from environment or use defaults
 const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
@@ -142,7 +157,8 @@ async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
       pipeline = pipeline.modulate({ saturation: 0.0, brightness: 1.0 }); // Grayscale
     }
 
-    return await pipeline.png().toBuffer();
+    // JPEG is much smaller than PNG and reduces OCR.space validation failures on size.
+    return await pipeline.jpeg({ quality: 80 }).toBuffer();
   } catch (error: any) {
     console.warn("Image optimization failed, using original:", error.message);
     return buffer;
@@ -180,7 +196,13 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
     } else {
       buffer = pdfData;
     }
-    console.log(`Using OCR.space for PDF: ${filename}`);
+    const parsedText = await tryExtractTextFromPdfParse(buffer);
+    if (parsedText) {
+      console.log(`PDF has embedded text (pdf-parse): ${filename}`);
+      return parsedText;
+    }
+
+    console.log(`Using OCR.space for scanned PDF: ${filename}`);
     return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PDF extraction error:", error.message);
