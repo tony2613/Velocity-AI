@@ -14,7 +14,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import upiQrCode from "@/assets/upi-qr.png";
 import upiQrCode99 from "@/assets/upi-qr99.png.jpeg";
 import upiQrCode249 from "@/assets/upi-qr249.png.jpeg";
 import { Input } from "@/components/ui/input";
