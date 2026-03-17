@@ -245,7 +245,7 @@ export default function Pricing() {
                                         ? upiQrCode99
                                         : selectedTier?.value === "elite"
                                         ? upiQrCode249
-                                        : upiQrCode
+                                        : upiQrCode99
                                 } 
                                 alt="UPI QR Code - Scan to Pay" 
                                 className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
