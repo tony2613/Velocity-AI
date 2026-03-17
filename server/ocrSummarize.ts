@@ -129,6 +129,33 @@ async function callOcrSpaceBuffer(buf: Buffer, filename: string): Promise<string
   }
 }
 
+async function callLocalPythonExtract(buf: Buffer, filename: string): Promise<string> {
+  try {
+    const form = new FormData();
+    form.append("file", buf as any, { filename });
+
+    const res = await axios.post("http://127.0.0.1:8000/extract", form, {
+      headers: form.getHeaders(),
+      timeout: 10 * 60 * 1000, // 10 minutes for large scanned PDFs
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      validateStatus: () => true,
+    });
+
+    if (res.status !== 200) {
+      return `[Python OCR error: HTTP ${res.status}]`;
+    }
+
+    const text = (res.data?.text || res.data?.result || "").toString();
+    return text.trim() || "[No text extracted]";
+  } catch (error: any) {
+    if (error.code === "ECONNREFUSED") {
+      return "[Python OCR service not reachable]";
+    }
+    return `[Python OCR request failed: ${error.message}]`;
+  }
+}
+
 // Optimize image for OCR (grayscale, resize, contrast)
 async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
   try {
@@ -179,7 +206,16 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
     // Preprocess image for better OCR results
     const optimizedBuffer = await optimizeImageForOCR(buffer);
 
-    return await callOcrSpaceBuffer(optimizedBuffer, filename);
+    const ocrSpaceText = await callOcrSpaceBuffer(optimizedBuffer, filename);
+    if (
+      ocrSpaceText.includes("File failed validation") ||
+      ocrSpaceText.includes("exceeds") ||
+      ocrSpaceText.includes("timed out")
+    ) {
+      const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
+      return pyText;
+    }
+    return ocrSpaceText;
   } catch (error: any) {
     console.error("Image extraction error:", error.message);
     return "[Failed to process image]";
@@ -203,7 +239,22 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
     }
 
     console.log(`Using OCR.space for scanned PDF: ${filename}`);
-    return await callOcrSpaceBuffer(buffer, filename);
+    // OCR.space has file-size limits; large scanned PDFs should use local Python OCR service.
+    const isLarge = buffer.length > 4 * 1024 * 1024;
+    if (isLarge) {
+      console.log(`PDF is large (${Math.round(buffer.length / 1024 / 1024)}MB). Using local Python OCR: ${filename}`);
+      return await callLocalPythonExtract(buffer, filename);
+    }
+
+    const ocrSpaceText = await callOcrSpaceBuffer(buffer, filename);
+    if (
+      ocrSpaceText.includes("File failed validation") ||
+      ocrSpaceText.includes("exceeds") ||
+      ocrSpaceText.includes("timed out")
+    ) {
+      return await callLocalPythonExtract(buffer, filename);
+    }
+    return ocrSpaceText;
   } catch (error: any) {
     console.error("PDF extraction error:", error.message);
     return `[Error processing PDF: ${error.message}]`;
