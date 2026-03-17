@@ -3,6 +3,9 @@ import axios from "axios";
 import FormData from "form-data";
 import sharp from "sharp";
 
+const OCR_API_KEY = process.env.OCR_API_KEY || "helloworld";
+const OCR_TIMEOUT_MS = 120000;
+
 // Load API keys from environment or use defaults
 const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
 const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || "";
@@ -74,45 +77,40 @@ async function googleSearch(query: string): Promise<string[]> {
 
 // OCR.space API call removed (unused)
 
-// Helper to call Python service
-async function callPythonOCR(fileBuffer: Buffer, filename: string): Promise<string> {
+async function callOcrSpaceBuffer(buf: Buffer, filename: string): Promise<string> {
   try {
     const form = new FormData();
-    form.append("file", fileBuffer as any, { filename });
+    form.append("apikey", OCR_API_KEY);
+    form.append("language", "eng");
+    form.append("isOverlayRequired", "false");
+    form.append("file", buf, { filename });
 
-    const res = await axios.post("http://127.0.0.1:8000/extract", form, {
+    const res = await axios.post("https://api.ocr.space/parse/image", form, {
       headers: form.getHeaders(),
+      timeout: OCR_TIMEOUT_MS,
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
-      timeout: 300000, // 5 minutes - OCR can take a while for large files
+      validateStatus: () => true,
     });
 
-    const text = res.data.text || "";
-    if (!text.trim()) {
-      return "[No text extracted by Python service]";
-    }
-    return text;
-  }
-  catch (error: any) {
-    console.error("Python Service Error:", error.message);
-
-    // Log detailed Python error if available
-    if (error.response?.data) {
-      console.error("Python Stack Trace/Detail:", JSON.stringify(error.response.data, null, 2));
-      const pythonError = error.response.data.error || JSON.stringify(error.response.data);
-      return `[Python Error: ${pythonError}]`;
+    if (res.status !== 200) {
+      return `[OCR.space error: HTTP ${res.status}]`;
     }
 
-    if (error.code === 'ECONNREFUSED') {
-      return "[Error: Python Extraction Service is not reachable. Ensure 'main.py' is running.]";
+    const data = res.data;
+    if (data?.IsErroredOnProcessing) {
+      const errorMsg = Array.isArray(data?.ErrorMessage) ? data.ErrorMessage.join("; ") : (data?.ErrorMessage || "Unknown OCR error");
+      return `[OCR.space processing error: ${errorMsg}]`;
     }
-    if (error.code === 'ECONNRESET' || error.message?.includes('socket hang up')) {
-      return "[Error: Connection to Python service was lost. The file may be too large or the service crashed. Please try again.]";
-    }
-    if (error.code === 'ECONNABORTED') {
-      return "[Error: Python service timed out processing the file. The file may be too complex. Please try a smaller file.]";
-    }
-    return `[Error calling Extraction service: ${error.message}]`;
+
+    const parsed = data?.ParsedResults;
+    const text = Array.isArray(parsed)
+      ? parsed.map((p: any) => p?.ParsedText || "").join("\n\n").trim()
+      : "";
+
+    return text || "[No text detected]";
+  } catch (error: any) {
+    return `[OCR.space request failed: ${error.message}]`;
   }
 }
 
@@ -165,7 +163,7 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
     // Preprocess image for better OCR results
     const optimizedBuffer = await optimizeImageForOCR(buffer);
 
-    return await callPythonOCR(optimizedBuffer, filename);
+    return await callOcrSpaceBuffer(optimizedBuffer, filename);
   } catch (error: any) {
     console.error("Image extraction error:", error.message);
     return "[Failed to process image]";
@@ -182,8 +180,8 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
     } else {
       buffer = pdfData;
     }
-    console.log(`Using Python Service for PDF: ${filename}`);
-    return await callPythonOCR(buffer, filename);
+    console.log(`Using OCR.space for PDF: ${filename}`);
+    return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PDF extraction error:", error.message);
     return `[Error processing PDF: ${error.message}]`;
@@ -201,8 +199,8 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
     } else {
       buffer = pptData;
     }
-    console.log(`Using Python Service for PPT: ${filename}`);
-    return await callPythonOCR(buffer, filename);
+    console.log(`Using OCR.space for PPT: ${filename}`);
+    return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PPT extraction error:", error.message);
     return `[Error processing PPT: ${error.message}]`;
