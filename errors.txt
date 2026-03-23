@@ -1,0 +1,3 @@
+client/src/pages/Pricing.tsx(6,22): error TS6133: 'queryClient' is declared but its value is never read.
+server/routes.ts(908,27): error TS2339: Property 'id' does not exist on type 'User'.
+server/routes.ts(922,75): error TS6133: 'req' is declared but its value is never read.

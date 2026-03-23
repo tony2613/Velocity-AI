@@ -37,6 +37,7 @@ export interface IStorage {
   getAllNotes(userId: string): Promise<Note[]>;
   deleteNote(id: string, userId: string): Promise<void>;
   updateUserTier(userId: string, tier: string): Promise<void>;
+  updateUserTierWithExpiry(userId: string, tier: string, expiresAt: Date): Promise<void>;
 
   createSummary(summary: InsertSummary): Promise<Summary>;
   getSummaryByNoteId(noteId: string): Promise<Summary | undefined>;
@@ -58,6 +59,8 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  public readonly db = db;
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -171,7 +174,13 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserTier(userId: string, tier: string): Promise<void> {
     await db.update(users)
-      .set({ subscriptionTier: tier })
+      .set({ subscriptionTier: tier, subscriptionExpiresAt: null })
+      .where(eq(users.id, userId));
+  }
+
+  async updateUserTierWithExpiry(userId: string, tier: string, expiresAt: Date): Promise<void> {
+    await db.update(users)
+      .set({ subscriptionTier: tier, subscriptionExpiresAt: expiresAt })
       .where(eq(users.id, userId));
   }
 

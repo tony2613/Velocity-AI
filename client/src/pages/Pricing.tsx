@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import SEO from "@/components/SEO";
@@ -213,7 +213,14 @@ export default function Pricing() {
                                             {loadingTier === tier.value ? (
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                             ) : isCurrent ? (
-                                                "Current Plan"
+                                                <span className="flex flex-col items-center leading-tight">
+                                                    <span>Current Plan</span>
+                                                    {tier.value !== 'free' && (user as any)?.subscriptionExpiresAt && (
+                                                        <span className="text-[10px] font-normal opacity-70">
+                                                            Active until {new Date((user as any).subscriptionExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    )}
+                                                </span>
                                             ) : tier.value === 'free' ? (
                                                 "Included"
                                             ) : (

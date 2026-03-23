@@ -1,13 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { DrizzleError, eq } from "drizzle-orm";
-import { users, insertNoteSchema, paymentRequests } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { insertNoteSchema, paymentRequests } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
 import ocrPreprocessRouter from "./ocrPreprocess";
 import multer from "multer";
 import Groq from "groq-sdk";
 import { setupAuth } from "./auth";
+import { isAuthenticated, isAdmin, checkUsageLimit, checkSearchLimit } from "./middleware";
+import { sendEmail } from "./email";
 
 function getGroq() {
   if (!process.env.GROQ_API_KEY) {
@@ -17,9 +19,6 @@ function getGroq() {
     apiKey: process.env.GROQ_API_KEY,
   });
 }
-
-import { isAuthenticated, checkUsageLimit, checkSearchLimit } from "./middleware";
-
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -906,7 +905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.db.insert(paymentRequests).values({
-        userId: req.user!.id,
+        userId: (req.user as any).id,
         tier,
         transactionId,
         amount
@@ -919,10 +918,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/approve-payment", isAuthenticated, async (req, res) => {
+  // GET pending payments list (admin only)
+  app.get("/api/admin/pending-payments", isAuthenticated, isAdmin, async (_req, res) => {
     try {
-      // Basic admin check (could be improved later by adding an isAdmin flag)
-      // For now, only you will be hitting this endpoint from your script/postman
+      const pending = await storage.db.query.paymentRequests.findMany({
+        where: eq(paymentRequests.status, "pending"),
+        with: { user: true },
+      });
+      res.json(pending);
+    } catch (error) {
+      console.error("Admin pending-payments error:", error);
+      res.status(500).json({ error: "Failed to fetch pending payments" });
+    }
+  });
+
+  app.post("/api/admin/approve-payment", isAuthenticated, isAdmin, async (req, res) => {
+    try {
       const { requestId, approve } = req.body;
 
       if (!requestId) {
@@ -931,7 +942,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // @ts-ignore
       const request = await storage.db.query.paymentRequests.findFirst({
-        where: eq(paymentRequests.id, requestId)
+        where: eq(paymentRequests.id, requestId),
+        with: { user: true },
       });
 
       if (!request) {
@@ -943,24 +955,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (approve) {
-        // @ts-ignore
-        await storage.db.update(users)
-          .set({ subscriptionTier: request.tier })
-          .where(eq(users.id, request.userId));
-        
-        // Update request status
+        // Set expiry to 30 days from now
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        await storage.updateUserTierWithExpiry(request.userId, request.tier, expiresAt);
+
         // @ts-ignore
         await storage.db.update(paymentRequests)
           .set({ status: 'approved' })
           .where(eq(paymentRequests.id, requestId));
-          
-        res.json({ message: "Payment approved and user upgraded." });
+
+        // Send email notification to user
+        // @ts-ignore
+        const userEmail = request.user?.email;
+        // @ts-ignore
+        const username = request.user?.username || 'User';
+        if (userEmail) {
+          const expiryStr = expiresAt.toDateString();
+          const emailHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #6c63ff;">🎉 Payment Approved!</h1>
+              <p>Hi <strong>${username}</strong>,</p>
+              <p>Your payment has been verified and your <strong>Velocity ${request.tier.charAt(0).toUpperCase() + request.tier.slice(1)}</strong> subscription is now active!</p>
+              <p>Your subscription is valid until: <strong>${expiryStr}</strong></p>
+              <p>Enjoy your upgraded features. If you have any questions, just reply to this email.</p>
+              <br/>
+              <p>Best regards,<br/>The Velocity AI Team</p>
+            </div>
+          `;
+          sendEmail({
+            to: userEmail,
+            subject: `✅ Your Velocity ${request.tier} subscription is active!`,
+            html: emailHtml,
+          }).catch((err: unknown) => console.error("Failed to send approval email:", err));
+        }
+
+        res.json({ message: "Payment approved and user upgraded.", expiresAt });
       } else {
         // @ts-ignore
         await storage.db.update(paymentRequests)
           .set({ status: 'rejected' })
           .where(eq(paymentRequests.id, requestId));
-          
+
         res.json({ message: "Payment request rejected." });
       }
     } catch (error) {

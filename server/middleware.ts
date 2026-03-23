@@ -7,6 +7,28 @@ export const isAuthenticated = (req: any, res: any, next: any) => {
     res.status(401).json({ error: "Unauthorized" });
 };
 
+/** Only allows requests from users with isAdmin = true */
+export const isAdmin = (req: any, res: any, next: any) => {
+    if (req.isAuthenticated() && req.user?.isAdmin === true) {
+        return next();
+    }
+    res.status(403).json({ error: "Forbidden: Admin access required" });
+};
+
+/** Expire paid subscription and downgrade user back to free */
+async function expireSubscriptionIfNeeded(user: any): Promise<string> {
+    const now = new Date();
+    if (
+        user.subscriptionTier !== 'free' &&
+        user.subscriptionExpiresAt &&
+        new Date(user.subscriptionExpiresAt) < now
+    ) {
+        await storage.updateUserTier(user.id, 'free');
+        return 'free';
+    }
+    return user.subscriptionTier || 'free';
+}
+
 // Rate limiting middleware
 export const checkUsageLimit = async (req: any, res: any, next: any) => {
     try {
@@ -14,6 +36,9 @@ export const checkUsageLimit = async (req: any, res: any, next: any) => {
 
         const user = await storage.getUser(req.user.id);
         if (!user) return res.status(401).json({ error: "User not found" });
+
+        // Auto-expire subscription if past due
+        const tier = await expireSubscriptionIfNeeded(user);
 
         const today = new Date();
         const lastUpload = user.lastUploadDate ? new Date(user.lastUploadDate) : new Date(0);
@@ -24,9 +49,8 @@ export const checkUsageLimit = async (req: any, res: any, next: any) => {
             today.getUTCFullYear() !== lastUpload.getUTCFullYear();
 
         if (isNewDay) {
-            // Reset count if it's a new day
             await storage.resetDailyUsage(user.id);
-            req.user.dailyUploadCount = 0; // Update local user object
+            req.user.dailyUploadCount = 0;
         }
 
         // Define limits based on tier
@@ -36,7 +60,6 @@ export const checkUsageLimit = async (req: any, res: any, next: any) => {
             'elite': 200
         };
 
-        const tier = user.subscriptionTier || 'free';
         const limit = limits[tier] || 5;
 
         if (user.dailyUploadCount >= limit) {
@@ -61,6 +84,9 @@ export const checkSearchLimit = async (req: any, res: any, next: any) => {
         const user = await storage.getUser(req.user.id);
         if (!user) return res.status(401).json({ error: "User not found" });
 
+        // Auto-expire subscription if past due
+        const tier = await expireSubscriptionIfNeeded(user);
+
         const today = new Date();
         const lastSearch = user.lastSearchDate ? new Date(user.lastSearchDate) : new Date(0);
 
@@ -81,7 +107,6 @@ export const checkSearchLimit = async (req: any, res: any, next: any) => {
             'elite': 100
         };
 
-        const tier = user.subscriptionTier || 'free';
         const limit = searchLimits[tier] || 0;
 
         if (limit === 0) {

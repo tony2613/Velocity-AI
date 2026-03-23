@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -12,7 +12,9 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   password: text("password").notNull(),
+  isAdmin: boolean("is_admin").default(false),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at"),
   dailyUploadCount: integer("daily_upload_count").notNull().default(0),
   lastUploadDate: timestamp("last_upload_date").defaultNow(),
   dailySearchCount: integer("daily_search_count").notNull().default(0),
@@ -156,3 +158,10 @@ export const insertPaymentRequestSchema = createInsertSchema(paymentRequests).om
 
 export type InsertPaymentRequest = z.infer<typeof insertPaymentRequestSchema>;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
+
+export const paymentRequestsRelations = relations(paymentRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [paymentRequests.userId],
+    references: [users.id],
+  }),
+}));
