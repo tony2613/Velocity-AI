@@ -210,7 +210,8 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
     if (
       ocrSpaceText.includes("File failed validation") ||
       ocrSpaceText.includes("exceeds") ||
-      ocrSpaceText.includes("timed out")
+      ocrSpaceText.includes("timed out") ||
+      ocrSpaceText.includes("maximum page limit")
     ) {
       const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
       return pyText;
@@ -250,7 +251,8 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
     if (
       ocrSpaceText.includes("File failed validation") ||
       ocrSpaceText.includes("exceeds") ||
-      ocrSpaceText.includes("timed out")
+      ocrSpaceText.includes("timed out") ||
+      ocrSpaceText.includes("maximum page limit")
     ) {
       return await callLocalPythonExtract(buffer, filename);
     }
