@@ -30,8 +30,9 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
+  const { isInstallable, isInstalled, promptInstall, isInAppBrowser } = usePWAInstall();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
+  const [showInAppBrowserModal, setShowInAppBrowserModal] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -75,10 +76,16 @@ export default function Navbar() {
   const handleResultClick = (result: any) => {
     window.open(result.link, "_blank");
   };
-
   const handleInstallClick = async () => {
-    const showIosInstructions = await promptInstall();
-    if (showIosInstructions) {
+    const installResult = await promptInstall();
+    if (installResult === 'intent') {
+      toast({
+        title: "Opening in Browser...",
+        description: "Redirecting you to install Velocity AI.",
+      });
+    } else if (installResult === 'in-app') {
+      setShowInAppBrowserModal(true);
+    } else if (installResult === 'ios') {
       setShowIOSInstallModal(true);
     }
   };
@@ -464,6 +471,41 @@ export default function Navbar() {
               </div>
             </div>
             <Button className="w-full mt-4" onClick={() => setShowIOSInstallModal(false)}>
+              Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInAppBrowserModal} onOpenChange={setShowInAppBrowserModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">Open in System Browser</DialogTitle>
+            <DialogDescription className="sr-only">Instructions to open the app in default browser to install</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
+            <div className="p-4 bg-muted/50 rounded-full">
+              <ExternalLink className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="font-semibold px-4 text-lg">Leave the app browser</h3>
+            <p className="text-sm text-muted-foreground px-6">
+              You're currently viewing this in an in-app browser. To safely install Velocity AI, please open this page in your device's default browser.
+            </p>
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
+              <div className="flex items-start gap-3">
+                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
+                <span>Tap the <strong>three dots</strong> or <strong>Share</strong> icon in the corner of your screen.</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
+                <span>Select <strong>Open in Browser</strong>, <strong>Open in Safari</strong>, or <strong>Open in Chrome</strong>.</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">3</div>
+                <span>Once opened in your main browser, tap the <strong>Install App</strong> button again.</span>
+              </div>
+            </div>
+            <Button className="w-full mt-4" onClick={() => setShowInAppBrowserModal(false)}>
               Got it
             </Button>
           </div>

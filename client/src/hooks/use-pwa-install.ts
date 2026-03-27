@@ -15,6 +15,7 @@ export function usePWAInstall() {
     const [isInstallable, setIsInstallable] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
+    const [isInAppBrowser, setIsInAppBrowser] = useState(false);
 
     useEffect(() => {
         // 1. Check if it's already installed (Standalone mode)
@@ -62,9 +63,16 @@ export function usePWAInstall() {
         const userAgent = window.navigator.userAgent.toLowerCase();
         const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
         const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
+        
+        // Detect in-app browsers like Instagram, Facebook, TikTok, etc.
+        const inAppBrowserDetection = /instagram|fban|fbav|tiktok|wv/.test(userAgent);
 
-        // If it's iOS Safari and not already installed, flag it so we can show custom instructions
-        if (isIosDevice && isSafari && !mediaQuery.matches) {
+        // If it's an in-app browser and not already installed, flag it
+        if (inAppBrowserDetection && !mediaQuery.matches && !(window.navigator as any).standalone) {
+            setIsInAppBrowser(true);
+            setIsInstallable(true);
+        } else if (isIosDevice && isSafari && !mediaQuery.matches && !(window.navigator as any).standalone) {
+            // If it's iOS Safari and not already installed, flag it so we can show custom instructions
             setIsIOS(true);
             // We still want to show the button, but it will trigger a different action (a modal)
             setIsInstallable(true);
@@ -79,13 +87,32 @@ export function usePWAInstall() {
     }, []);
 
     const promptInstall = async () => {
+        if (isInAppBrowser) {
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            const isAndroid = /android/.test(userAgent);
+            
+            if (isAndroid) {
+                // Force open in Chrome on Android
+                const currentUrl = window.location.href;
+                const urlWithoutProtocol = currentUrl.replace(/^https?:\/\//, '');
+                
+                window.location.href = `intent://${urlWithoutProtocol}#Intent;scheme=https;package=com.android.chrome;end`;
+                
+                // Small delay to allow intent to process before returning
+                await new Promise(resolve => setTimeout(resolve, 500));
+                return 'intent';
+            }
+            
+            return 'in-app';
+        }
+
         if (isIOS) {
             // Return true to indicate we need to show the iOS instructions modal
-            return true;
+            return 'ios';
         }
 
         if (!deferredPrompt) {
-            return false;
+            return 'none';
         }
 
         // Show the install prompt
@@ -97,8 +124,8 @@ export function usePWAInstall() {
         // We've used the prompt, and can't use it again, throw it away
         setDeferredPrompt(null);
         setIsInstallable(false);
-        return false;
+        return 'prompted';
     };
 
-    return { isInstallable, isInstalled, isIOS, promptInstall };
+    return { isInstallable, isInstalled, isIOS, isInAppBrowser, promptInstall };
 }
