@@ -67,10 +67,11 @@ export function usePWAInstall() {
         // Detect in-app browsers like Instagram, Facebook, TikTok, etc.
         const inAppBrowserDetection = /instagram|fban|fbav|tiktok|wv/.test(userAgent);
 
-        // If it's an in-app browser and not already installed, flag it
-        if (inAppBrowserDetection && !mediaQuery.matches && !(window.navigator as any).standalone) {
+        // If it's an in-app browser, aggressively flag it
+        if (inAppBrowserDetection) {
             setIsInAppBrowser(true);
             setIsInstallable(true);
+            setIsInstalled(false); // In-app browsers can never truly be the installed PWA
         } else if (isIosDevice && isSafari && !mediaQuery.matches && !(window.navigator as any).standalone) {
             // If it's iOS Safari and not already installed, flag it so we can show custom instructions
             setIsIOS(true);
