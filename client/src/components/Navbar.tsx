@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Search, X, Loader2, Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
+import { Search, X, Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
@@ -30,52 +29,21 @@ export default function Navbar() {
   const [, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const { isInstallable, isInstalled, promptInstall, isInAppBrowser } = usePWAInstall();
+  const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
   const [showInAppBrowserModal, setShowInAppBrowserModal] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [question, setQuestion] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<any | null>(null);
-  const setLastSearchedQuestion = (_v: string) => { }; // kept for onSuccess call — value unused
 
-  const searchQuestionMutation = useMutation({
-    mutationFn: async (q: string) => {
-      const res = await fetch("/api/search-question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to search");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setSearchResults(data.results || []);
-      setShowResults(true);
-      setLastSearchedQuestion(question);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: t("error.search_failed"),
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const usageLimit = user?.subscriptionTier === 'elite' ? 200 : user?.subscriptionTier === 'pro' ? 50 : 5;
+  const dailyUsage = user?.dailyUploadCount || 0;
+  const isNearLimit = dailyUsage >= usageLimit - 1;
+  const isAtLimit = dailyUsage >= usageLimit;
 
   const handleLogout = () => {
     logoutMutation.mutate();
   };
 
-  const handleResultClick = (result: any) => {
-    window.open(result.link, "_blank");
-  };
   const handleInstallClick = async () => {
     const installResult = await promptInstall();
     if (installResult === 'intent') {
@@ -148,82 +116,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Desktop Search */}
-          {user && (
-            <div className="hidden lg:flex flex-1 max-w-lg mx-8 items-center">
-              <div className="relative w-full group">
-                <div className="relative flex items-center">
-                  <Input
-                    placeholder={t("nav.search_placeholder")}
-                    className="w-full pl-11 pr-20 h-11 rounded-full bg-muted/30 focus:bg-background/80"
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && question.trim()) {
-                        searchQuestionMutation.mutate(question);
-                      }
-                    }}
-                  />
-                  <Search className="absolute left-4 h-5 w-5 text-muted-foreground/60" />
-                  <div className="absolute right-1.5 flex items-center gap-1">
-                    {question.trim() && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full"
-                        onClick={() => setQuestion("")}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="default"
-                      className="h-8 w-8 rounded-full"
-                      onClick={() => {
-                        if (question.trim()) {
-                          searchQuestionMutation.mutate(question);
-                        }
-                      }}
-                      disabled={searchQuestionMutation.isPending || !question.trim()}
-                    >
-                      {searchQuestionMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Search className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {showResults && searchResults.length > 0 && (
-                  <div className="absolute top-full mt-3 w-full bg-background/95 border border-primary/20 rounded-2xl shadow-xl p-3 z-50 backdrop-blur-xl">
-                    <div className="flex items-center justify-between px-3 mb-3">
-                      <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">{t("nav.ai_insights")}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setShowResults(false)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <div className="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
-                      {searchResults.map((result, index) => (
-                        <div
-                          key={index}
-                          className="p-4 hover:bg-primary/5 rounded-xl cursor-pointer transition-all border border-transparent hover:border-primary/20"
-                          onClick={() => handleResultClick(result)}
-                        >
-                          <div className="flex items-center justify-between gap-3 mb-2">
-                            <h5 className="font-bold text-sm text-primary leading-tight">{result.title}</h5>
-                            <ExternalLink className="h-3.5 w-3.5 text-primary opacity-70" />
-                          </div>
-                          <p className="text-xs text-muted-foreground/90 line-clamp-3 leading-relaxed">{result.snippet}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Removed Desktop Search */}
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
@@ -241,6 +134,14 @@ export default function Navbar() {
               <ThemeToggle />
               {user ? (
                 <>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2
+                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
+                      : 'bg-primary/10 text-primary border-primary/20'}`}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>{dailyUsage} / {usageLimit}</span>
+                  </div>
                   <Link href="/upload">
                     <Button className="gap-2 mr-2">
                       <Upload className="h-4 w-4" />
@@ -301,57 +202,7 @@ export default function Navbar() {
 
             {/* Mobile Actions */}
             <div className="md:hidden flex items-center gap-2">
-              <Sheet open={showMobileSearch} onOpenChange={setShowMobileSearch}>
-                <SheetContent side="top" className="w-full p-0 bg-background/95 backdrop-blur-xl border-b z-50">
-                  <div className="flex flex-col h-[50vh]">
-                    <SheetHeader className="sr-only">
-                      <SheetTitle>Search</SheetTitle>
-                    </SheetHeader>
-                    <div className="flex items-center gap-2 h-16 pl-4 pr-12 border-b shrink-0">
-                      <form
-                        className="flex-1 relative group"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (question.trim()) {
-                            searchQuestionMutation.mutate(question);
-                          }
-                        }}
-                      >
-                        <Input
-                          placeholder={t("nav.search_placeholder")}
-                          className="h-10 pl-10 rounded-full w-full"
-                          value={question}
-                          onChange={(e) => setQuestion(e.target.value)}
-                          autoFocus
-                        />
-                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <button
-                          type="submit"
-                          className="absolute right-1.5 top-1.5 p-1.5 rounded-full hover:bg-primary/10 text-primary"
-                        >
-                          {searchQuestionMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <ArrowRight className="h-4 w-4" />
-                          )}
-                        </button>
-                      </form>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4">
-                      {searchResults.map((result, index) => (
-                        <div
-                          key={index}
-                          className="p-4 bg-card/50 border border-border/50 rounded-xl mb-3"
-                          onClick={() => handleResultClick(result)}
-                        >
-                          <h5 className="font-bold text-sm mb-1">{result.title}</h5>
-                          <p className="text-xs text-muted-foreground line-clamp-3">{result.snippet}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
+            {/* Mobile Search Sheet Removed */}
 
               {isInstallable && !isInstalled && (
                 <Button
@@ -364,11 +215,7 @@ export default function Navbar() {
                   <span className="text-xs">Install</span>
                 </Button>
               )}
-              {user && (
-                <Button variant="ghost" size="icon" onClick={() => setShowMobileSearch(true)}>
-                  <Search className="h-5 w-5" />
-                </Button>
-              )}
+
               <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
@@ -385,6 +232,20 @@ export default function Navbar() {
           <div className="flex flex-col gap-2">
             {user ? (
               <>
+                <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold uppercase text-muted-foreground">App Usage</span>
+                    <span className="text-sm font-medium">Daily Credits</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold
+                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
+                      : 'bg-primary/10 text-primary border-primary/20'}`}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {dailyUsage} / {usageLimit}
+                  </div>
+                </div>
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.dashboard")}
                 </Link>
@@ -428,23 +289,6 @@ export default function Navbar() {
           </div>
         </SheetContent>
       </Sheet>
-
-      <Dialog open={!!selectedResult} onOpenChange={(open) => !open && setSelectedResult(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{selectedResult?.title}</DialogTitle>
-            <DialogDescription className="sr-only">Details about the search result</DialogDescription>
-          </DialogHeader>
-          <div className="mt-4">
-            <p>{selectedResult?.snippet}</p>
-            {selectedResult?.link && (
-              <Button onClick={() => window.open(selectedResult.link, "_blank")} className="mt-4">
-                Read More <ExternalLink className="ml-2 h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showIOSInstallModal} onOpenChange={setShowIOSInstallModal}>
         <DialogContent className="sm:max-w-md">

@@ -1,0 +1,52 @@
+﻿diff --git a/client/src/components/Navbar.tsx b/client/src/components/Navbar.tsx
+index 5d9efe8..729e496 100644
+--- a/client/src/components/Navbar.tsx
++++ b/client/src/components/Navbar.tsx
+@@ -42,6 +42,11 @@ export default function Navbar() {
+   const [selectedResult, setSelectedResult] = useState<any | null>(null);
+   const setLastSearchedQuestion = (_v: string) => { }; // kept for onSuccess call ΓÇö value unused
+ 
++  const usageLimit = user?.subscriptionTier === 'elite' ? 200 : user?.subscriptionTier === 'pro' ? 50 : 5;
++  const dailyUsage = user?.dailyUploadCount || 0;
++  const isNearLimit = dailyUsage >= usageLimit - 1;
++  const isAtLimit = dailyUsage >= usageLimit;
++
+   const searchQuestionMutation = useMutation({
+     mutationFn: async (q: string) => {
+       const res = await fetch("/api/search-question", {
+@@ -241,6 +246,14 @@ export default function Navbar() {
+               <ThemeToggle />
+               {user ? (
+                 <>
++                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2
++                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
++                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
++                      : 'bg-primary/10 text-primary border-primary/20'}`}
++                  >
++                    <Sparkles className="h-3 w-3" />
++                    <span>{dailyUsage} / {usageLimit}</span>
++                  </div>
+                   <Link href="/upload">
+                     <Button className="gap-2 mr-2">
+                       <Upload className="h-4 w-4" />
+@@ -385,6 +398,20 @@ export default function Navbar() {
+           <div className="flex flex-col gap-2">
+             {user ? (
+               <>
++                <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
++                  <div className="flex flex-col">
++                    <span className="text-xs font-semibold uppercase text-muted-foreground">App Usage</span>
++                    <span className="text-sm font-medium">Daily Credits</span>
++                  </div>
++                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold
++                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
++                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
++                      : 'bg-primary/10 text-primary border-primary/20'}`}
++                  >
++                    <Sparkles className="h-3 w-3" />
++                    {dailyUsage} / {usageLimit}
++                  </div>
++                </div>
+                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
+                   {t("nav.dashboard")}
+                 </Link>

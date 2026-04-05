@@ -214,6 +214,39 @@ export default function Settings() {
 
                         <Card>
                             <CardHeader>
+                                <CardTitle>AI Model Preference 🧠</CardTitle>
+                                <CardDescription>Choose the AI model used for summaries and study guides.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <Label>Preferred Model</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Select your default AI engine.
+                                        </p>
+                                    </div>
+                                    <Select
+                                        value={localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile"}
+                                        onValueChange={(value: any) => {
+                                            localStorage.setItem("velocity_model", value);
+                                            toast({ title: "Model Updated", description: `Default model set to ${value}` });
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[220px]">
+                                            <SelectValue placeholder="Select Model" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 (Fast & Sharp)</SelectItem>
+                                            <SelectItem value="gemini-flash">Gemini 1.5 Flash (Balanced)</SelectItem>
+                                            <SelectItem value="gemini-pro">Gemini 1.5 Pro (Deep Reasoning)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
                                 <CardTitle>{t("settings.language")} 🌐</CardTitle>
                                 <CardDescription>{t("settings.language_desc")}</CardDescription>
                             </CardHeader>

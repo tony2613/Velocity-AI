@@ -1,0 +1,309 @@
+﻿diff --git a/server/routes.ts b/server/routes.ts
+index ea9ff01..2a45bc5 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -2,11 +2,12 @@ import type { Express } from "express";
+ import { createServer, type Server } from "http";
+ import { storage } from "./storage";
+ import { eq } from "drizzle-orm";
+-import { insertNoteSchema, paymentRequests } from "@shared/schema";
++import { insertNoteSchema, paymentRequests, insertResearchSchema } from "@shared/schema";
+ import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
+ import ocrPreprocessRouter from "./ocrPreprocess";
+ import multer from "multer";
+ import Groq from "groq-sdk";
++import { geminiChat } from "./gemini";
+ import { setupAuth } from "./auth";
+ import { isAuthenticated, isAdmin, checkUsageLimit, checkSearchLimit } from "./middleware";
+ import { sendEmail } from "./email";
+@@ -277,7 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       const extractedText = await extractTextFromFile(req.file.buffer, filename);
+ 
+       // Generate summary
+-      const { summary, keyPoints, usage } = await generateSummary(extractedText);
++      const { summary, keyPoints, usage } = await generateSummary(extractedText, "English", req.body.preferredModel);
+ 
+       // Increment usage count
+       const userId = (req.user as any).id;
+@@ -290,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         tokensInput: usage?.promptTokens || 0,
+         tokensOutput: usage?.completionTokens || 0,
+         cost: 0,
+-        model: "llama-3.3-70b-versatile",
++        model: req.body.preferredModel || "llama-3.3-70b-versatile",
+         metadata: JSON.stringify({ filename, fileSize: req.file.size }),
+       });
+ 
+@@ -378,8 +379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.json(existingSummary);
+       }
+ 
+-      // Generate summary using Groq (includes topic research)
+-      const { summary: summaryText, keyPoints, topicExplanations } = await generateSummary(note.content, req.body.language);
++      // Generate summary using selected model (includes topic research)
++      const { summary: summaryText, keyPoints, topicExplanations } = await generateSummary(note.content, req.body.language, req.body.preferredModel);
+ 
+       const summary = await storage.createSummary({
+         noteId: note.id,
+@@ -424,37 +425,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.status(400).json({ error: "Question must be at least 3 characters" });
+       }
+ 
+-      const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
+-      const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || "";
+-
+-      if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
+-        return res.status(400).json({ error: "Google Search not configured. Using Groq for research instead." });
+-      }
+-
+-      try {
+-        const axios = require("axios");
+-        const cleanQuery = question.replace(/[^\w\s]/g, " ").trim().split(/\s+/).slice(0, 10).join(" ");
+-        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&num=5`;
+-
+-        const response = await axios.get(url, {
+-          timeout: 5000,
+-          validateStatus: () => true
+-        });
++      const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
+ 
+-        if (response.status === 200 && response.data?.items) {
+-          // Increment search usage
+-          const userId = (req.user as any).id;
+-          await storage.incrementDailySearch(userId);
+-
+-          const results = response.data.items.map((item: any) => ({
+-            title: item.title,
+-            snippet: item.snippet,
+-            link: item.link,
+-          }));
+-          return res.json({ success: true, results });
++      if (!SERPER_API_KEY) {
++        console.log("Serper API not configured. Using Groq for research instead.");
++      } else {
++        try {
++          const axios = require("axios");
++          const cleanQuery = question.replace(/[^\w\s]/g, " ").trim();
++          
++          const response = await axios.post('https://google.serper.dev/search', 
++            { q: cleanQuery, num: 5 },
++            {
++              headers: {
++                'X-API-KEY': SERPER_API_KEY,
++                'Content-Type': 'application/json'
++              },
++              timeout: 5000,
++              validateStatus: () => true
++            }
++          );
++
++          if (response.status === 200 && response.data?.organic) {
++            // Increment search usage
++            const userId = (req.user as any).id;
++            await storage.incrementDailySearch(userId);
++
++            const results = response.data.organic.map((item: any) => ({
++              title: item.title,
++              snippet: item.snippet,
++              link: item.link || "#",
++            }));
++            return res.json({ success: true, results });
++          }
++        } catch (e: any) {
++          console.warn("Serper Search failed, falling back to Groq research:", e.message);
+         }
+-      } catch (e: any) {
+-        console.warn("Google Search failed, falling back to Groq research:", e.message);
+       }
+ 
+       // Fallback: Use Groq to research the question with multiple perspectives
+@@ -543,6 +549,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
+     }
+   });
+ 
++  // Multi-AI Research Endpoint (Now CANA - Context-Aware Notes Assistant)
++  app.post("/api/research", isAuthenticated, checkSearchLimit, async (req, res) => {
++    try {
++      const { query } = insertResearchSchema.parse(req.body);
++      const userId = (req.user as any).id;
++      
++      // Fetch user's notes for context
++      const notes = await storage.getAllNotes(userId);
++      
++      let contextStr = "";
++      if (notes && notes.length > 0) {
++        // Collect notes, truncating content to keep context window safe (approx 15,000 chars total)
++        const combined = notes.map(n => `Title: ${n.title}\nContent: ${n.content.substring(0, 3000)}`).join("\n\n---\n\n");
++        contextStr = `\n\nUSER'S NOTES FOR CONTEXT:\n${combined.substring(0, 15000)}`;
++      }
++
++      let aiResponse = "";
++      let tokensInput = 0;
++      let tokensOutput = 0;
++      let usedModel = "llama-3.3-70b-versatile";
++      
++      const systemMsg = "You are 'CANA' (Context-Aware Notes Assistant), an expert study tool built into VelocityAI. Your goal is to answer the user's research query accurately and concisely. If the user has saved notes that are relevant to their query, use them immediately to provide a highly personalized answer. If the notes are not relevant or if they don't have notes, use your general knowledge." + contextStr;
++
++      try {
++        const groq = getGroq();
++        const completion = await groq.chat.completions.create({
++          model: "llama-3.3-70b-versatile",
++          messages: [
++            { role: "system", content: systemMsg },
++            { role: "user", content: query }
++          ],
++          temperature: 0.5,
++          max_tokens: 1500,
++        });
++        aiResponse = completion.choices[0]?.message?.content || "No response generated.";
++        tokensInput = completion.usage?.prompt_tokens || 0;
++        tokensOutput = completion.usage?.completion_tokens || 0;
++      } catch (err: any) {
++        console.warn("Groq failed for Research, falling back to Gemini:", err.message);
++        const res = await geminiChat([{ role: "system", content: systemMsg }, { role: "user", content: query }], "gemini-1.5-flash");
++        aiResponse = res.content;
++        tokensInput = res.usage.promptTokens;
++        tokensOutput = res.usage.completionTokens;
++        usedModel = "gemini-1.5-flash";
++      }
++
++      // Format as a single result mapped over seamlessly by the frontend
++      const results = [{
++        provider: 'CANA (VelocityAI Assistant)',
++        content: aiResponse
++      }];
++      
++      // Increment search usage
++      await storage.incrementDailySearch(userId);
++      
++      // Log usage
++      storage.logUsage({
++        userId,
++        action: "CANA_RESEARCH",
++        tokensInput,
++        tokensOutput,
++        cost: 0,
++        model: usedModel,
++        metadata: JSON.stringify({ query: query.substring(0, 100), contextNotesFound: notes.length }),
++      });
++      
++      res.json({ success: true, results });
++    } catch (error: any) {
++      console.error("CANA Research error:", error);
++      res.status(500).json({ error: error.message || "Failed to complete research" });
++    }
++  });
++
+   // Generate quiz for a note
+   app.post("/api/notes/:id/quiz", isAuthenticated, async (req, res) => {
+     try {
+@@ -585,40 +664,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       const truncatedContent = note.content.substring(0, 8000);
+ 
+       // Generate quiz using Groq with variety instructions
+-      const groq = getGroq();
+       const quizNumber = previousQuizzes.length + 1;
+       const questionTypes = ["definition/concept", "application/problem-solving", "comparison/analysis", "cause-effect", "example-based"];
+       const currentType = questionTypes[(quizNumber - 1) % questionTypes.length];
++      
++      const sysMsg = "You are a study assistant. Output ONLY valid JSON. Do not include markdown formatting or code blocks. Your response must be parseable JSON starting with {\"questions\": [ and ending with }]}.";
++      const usrMsg = `Create exactly 5 NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`;
+ 
+-      const completion = await groq.chat.completions.create({
+-        model: "llama-3.3-70b-versatile",
+-        messages: [
+-          {
+-            role: "system",
+-            content: "You are a study assistant. Output ONLY valid JSON. Do not include markdown formatting or code blocks. Your response must be parseable JSON starting with { and ending with }."
+-          },
+-          {
+-            role: "user",
+-            content: `Create exactly 5 NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`
+-          }
+-        ],
+-        temperature: 0.7,
+-        max_tokens: 1500,
+-      });
++      let responseText = "{}";
++      let tokensInput = 0;
++      let tokensOutput = 0;
++      let usedModel = "llama-3.3-70b-versatile";
++
++      try {
++        const groq = getGroq();
++        const completion = await groq.chat.completions.create({
++          model: "llama-3.3-70b-versatile",
++          messages: [
++            { role: "system", content: sysMsg },
++            { role: "user", content: usrMsg }
++          ],
++          temperature: 0.7,
++          max_tokens: 1500,
++        });
++        responseText = completion.choices[0].message.content || "{}";
++        tokensInput = completion.usage?.prompt_tokens || 0;
++        tokensOutput = completion.usage?.completion_tokens || 0;
++      } catch (err: any) {
++        console.warn("Groq failed for Quiz, falling back to Gemini:", err.message);
++        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-1.5-flash");
++        responseText = res.content;
++        tokensInput = res.usage.promptTokens;
++        tokensOutput = res.usage.completionTokens;
++        usedModel = "gemini-1.5-flash";
++      }
+ 
+       // Log Usage
+       storage.logUsage({
+         userId: (req.user as any).id,
+         action: "GENERATE_QUIZ",
+-        tokensInput: completion.usage?.prompt_tokens || 0,
+-        tokensOutput: completion.usage?.completion_tokens || 0,
+-        model: "llama-3.3-70b-versatile",
++        tokensInput,
++        tokensOutput,
++        model: usedModel,
+         cost: 0,
+         metadata: JSON.stringify({ noteId: note.id, quizType: currentType }),
+       });
+ 
+-      const responseText = completion.choices[0].message.content || "{}";
+-
+       // Extract JSON from markdown code blocks if present
+       let jsonStr = responseText.trim();
+ 
+@@ -780,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.status(400).json({ error: "Missing required fields: imageData, title, subject" });
+       }
+ 
+-      console.log("Processing:", isPDF ? "PDF" : "Image");
++      console.log(`[API] Processing ${isPDF ? "PDF" : "Image"}. Size: ${imageData.length} chars (approx ${Math.round(imageData.length * 0.75 / 1024)} KB)`);
+ 
+       let extractedText = "";
+ 
+@@ -810,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       let topicExplanations: Record<string, string> = {};
+       if (extractedText && !extractedText.includes("[Failed") && !extractedText.includes("[No text")) {
+         try {
+-          const { summary: summaryText, keyPoints, topicExplanations: explanations } = await generateSummary(extractedText, req.body.language);
++          const { summary: summaryText, keyPoints, topicExplanations: explanations } = await generateSummary(extractedText, req.body.language, req.body.preferredModel);
+ 
+           summary = await storage.createSummary({
+             noteId: note.id,
+@@ -844,7 +935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+   });
+ 
+   // Export to GitHub endpoint
+-  app.post("/api/export-to-github", async (req, res) => {
++  app.post("/api/export-to-github", isAuthenticated, async (req, res) => {
+     try {
+       const { repoName, description } = req.body;
+ 
+@@ -1007,7 +1098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+   });
+ 
+   // Keep this exclusively for local development testing, but maybe remove in prod later
+-  app.post("/api/debug/set-tier", isAuthenticated, async (req, res) => {
++  app.post("/api/debug/set-tier", isAuthenticated, isAdmin, async (req, res) => {
+     try {
+       const { tier } = req.body;
+       if (!['free', 'pro', 'elite'].includes(tier)) {

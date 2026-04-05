@@ -1,13 +1,17 @@
+import React, { useMemo } from "react";
 import { useParams, Link } from "wouter";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, GraduationCap, Search } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Note, Summary } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function SummaryView() {
   const { id } = useParams<{ id: string }>();
@@ -17,7 +21,7 @@ export default function SummaryView() {
     queryKey: [`/api/notes/${id}`],
   });
 
-  const { data: summary, isLoading: summaryLoading, error } = useQuery<Summary>({
+  const { data: summary, isLoading: summaryLoading, error } = useQuery<Summary & { topicExplanations?: Record<string, string> }>({
     queryKey: [`/api/notes/${id}/summary`],
     enabled: !!id,
     retry: false,
@@ -26,12 +30,18 @@ export default function SummaryView() {
   const generateSummaryMutation = useMutation({
     mutationFn: async () => {
       const language = localStorage.getItem("velocity_language") || "English";
+      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
+      
       const response = await fetch(`/api/notes/${id}/summary`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language })
+        body: JSON.stringify({ language, preferredModel })
       });
-      if (!response.ok) throw new Error("Failed to generate summary");
+      
+      if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || errorData.error || "Failed to generate summary");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -42,13 +52,55 @@ export default function SummaryView() {
       });
     },
     onError: (error: Error) => {
+      const isCreditError = error.message?.toLowerCase().includes("credits") || error.message?.toLowerCase().includes("upgrade");
+      
       toast({
-        title: "Error",
+        title: isCreditError ? "Limit Reached" : "Generation Failed",
         description: error.message,
         variant: "destructive",
       });
     },
   });
+
+  const getSection = (content: string, sectionName: string) => {
+    if (!content) return "";
+    const sections = content.split(/(?=## \d\. |## )/);
+    
+    const findSection = (name: string) => {
+      return sections.find(s => {
+        const lowerS = s.toLowerCase();
+        if (name === "overview") return /## \d\. overview|## overview/i.test(lowerS);
+        if (name === "solution") return /## \d\. lesson|## lesson|## solution|## 2\./i.test(lowerS);
+        if (name === "takeaways") return /## \d\. takeaways|## takeaways|## 3\./i.test(lowerS);
+        return lowerS.includes(name.toLowerCase());
+      });
+    };
+
+    let section = findSection(sectionName);
+    
+    // Fail-safe for Solution: If not found specifically, try to find the "middle" or "longest" part
+    if (!section && sectionName === "solution") {
+      // Try to find section 2 explicitly
+      section = sections.find(s => /^## 2\./i.test(s.trim()));
+      if (!section) {
+        // Ultimate fallback: if there are multiple sections and we can't find #2, 
+        // return everything except what looks like overview or takeaways
+        const filtered = sections.filter(s => {
+            const ls = s.toLowerCase();
+            return !ls.includes("overview") && !ls.includes("takeaways");
+        });
+        if (filtered.length > 0) return filtered.join("\n\n").replace(/## .*\n/, "").trim();
+        return content; // Last resort
+      }
+    }
+    
+    return section ? section.replace(/## .*\n/, "").trim() : "";
+  };
+
+  // Default to lesson tab for exhaustive content
+  const defaultTab = useMemo(() => {
+    return "guide";
+  }, []);
 
   if (noteLoading || summaryLoading) {
     return (
@@ -79,9 +131,9 @@ export default function SummaryView() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
         <div className="flex items-center gap-4">
           <Link href="/dashboard">
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -89,83 +141,179 @@ export default function SummaryView() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">{note.title}</h1>
+            <h1 className="text-3xl font-bold truncate">{note.title}</h1>
             <p className="text-muted-foreground">{note.subject}</p>
           </div>
         </div>
 
         {summary && !error ? (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <h2 className="text-2xl font-semibold flex items-center gap-2">
-                  <Sparkles className="h-6 w-6 text-primary" />
-                  AI Summary
-                </h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap text-foreground">{summary.content}</p>
-                </div>
-              </CardContent>
-            </Card>
+          <Tabs defaultValue={defaultTab} className="space-y-6">
+            <div className="sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2 -mx-4 px-4 border-b">
+              <TabsList className="w-full justify-start overflow-x-auto no-scrollbar bg-transparent h-auto p-0 gap-6">
+                <TabsTrigger value="snapshot" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
+                  <Info className="h-4 w-4" /> Snapshot
+                </TabsTrigger>
+                <TabsTrigger value="guide" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" /> Full Lesson & Solution
+                </TabsTrigger>
+                <TabsTrigger value="takeaways" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
+                  <ListChecks className="h-4 w-4" /> Takeaways
+                </TabsTrigger>
+                {summary.topicExplanations && Object.keys(summary.topicExplanations).length > 0 && (
+                  <TabsTrigger value="research" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
+                    <Search className="h-4 w-4" /> Research
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="full" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Full Review
+                </TabsTrigger>
+                <TabsTrigger value="raw" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2 text-muted-foreground">
+                  <Sparkles className="h-4 w-4" /> Source
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            {summary.keyPoints.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <h3 className="text-xl font-semibold">Key Points</h3>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {summary.keyPoints.map((point: string, index: number) => (
-                      <li key={index} className="flex gap-3">
-                        <span className="text-primary font-semibold">{index + 1}.</span>
-                        <span>{point}</span>
+            <TabsContent value="full" className="mt-0">
+              <Card className="border-none shadow-none bg-transparent">
+                <CardContent className="p-0">
+                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-6 -mx-1 px-1">
+                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
+                          </div>
+                        ),
+                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
+                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
+                      }}
+                    >
+                      {summary.content}
+                    </ReactMarkdown>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="snapshot" className="mt-0">
+              <Card className="border-none shadow-none bg-transparent">
+                <CardContent className="p-0 space-y-4">
+                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {getSection(summary.content, "Overview") || summary.content.split("##")[0]}
+                    </ReactMarkdown>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="takeaways" className="mt-0">
+               <Card className="border-none shadow-none bg-transparent">
+                <CardContent className="p-0">
+                  <ul className="space-y-4">
+                    {(summary.keyPoints.length > 0 ? summary.keyPoints : (getSection(summary.content, "Takeaways") || getSection(summary.content, "Key")).split("\n").filter(l => /^[*-•]/.test(l.trim()))).map((point: string, index: number) => (
+                      <li key={index} className="flex gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+                        <span className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                          {index + 1}
+                        </span>
+                        <span className="text-foreground/90 leading-snug">{point.replace(/^[-*•]\s+/, "")}</span>
                       </li>
                     ))}
                   </ul>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="guide" className="mt-0">
+              <Card className="border-none shadow-none bg-transparent">
+                <CardContent className="p-0">
+                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-6 -mx-1 px-1">
+                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
+                          </div>
+                        ),
+                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
+                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
+                        h1: ({ children }) => <h1 className="text-2xl font-bold mt-8 mb-4 border-b pb-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
+                      }}
+                    >
+                      {getSection(summary.content, "Solution") || summary.content}
+                    </ReactMarkdown>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {summary.topicExplanations && (
+              <TabsContent value="research" className="mt-0 space-y-4">
+                {Object.entries(summary.topicExplanations).map(([topic, explanation], index) => (
+                  <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5">
+                    <CardHeader className="bg-primary/10 py-3">
+                      <h4 className="font-bold text-primary flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" /> {topic}
+                      </h4>
+                    </CardHeader>
+                    <CardContent className="py-4">
+                      <p className="text-sm leading-relaxed text-foreground/80 italic">"{explanation}"</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </TabsContent>
             )}
 
-            <Card>
-              <CardHeader>
-                <h3 className="text-xl font-semibold">Original Notes</h3>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap text-muted-foreground">{note.content}</p>
-              </CardContent>
-            </Card>
-          </div>
+            <TabsContent value="raw" className="mt-0">
+              <Card>
+                <CardContent className="p-4 bg-muted/30">
+                  <p className="whitespace-pre-wrap text-xs text-muted-foreground font-mono leading-tight max-h-[60vh] overflow-y-auto">
+                    {note.content}
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         ) : (
-          <Card>
-            <CardContent className="py-12 text-center space-y-4">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">No summary yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  Generate an AI-powered summary of your notes
-                </p>
+          !summaryLoading && (
+            <Card className="border-dashed border-2">
+              <CardContent className="py-20 text-center space-y-6">
+                <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold">Generate Study Pack</h3>
+                  <p className="text-muted-foreground">Transform your notes into a structured study package with summaries and deep-dives.</p>
+                </div>
                 <Button
+                  size="lg"
                   onClick={() => generateSummaryMutation.mutate()}
                   disabled={generateSummaryMutation.isPending}
-                  data-testid="button-generate-summary"
+                  className="px-8"
                 >
                   {generateSummaryMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
+                      Crafting your guide...
                     </>
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4 mr-2" />
-                      Generate Summary
+                      Generate Study Pack
                     </>
                   )}
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )
         )}
       </main>
     </div>

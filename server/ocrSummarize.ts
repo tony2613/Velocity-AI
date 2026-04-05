@@ -2,9 +2,12 @@ import Groq from "groq-sdk";
 import axios from "axios";
 import FormData from "form-data";
 import sharp from "sharp";
+import { geminiOCR, geminiChat } from "./gemini";
 
 const OCR_API_KEY = process.env.OCR_API_KEY || "helloworld";
 const OCR_TIMEOUT_MS = 300000;
+
+console.log(`[OCR System] Gemini Key Detected: ${!!process.env.GEMINI_API_KEY}`);
 
 async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
   try {
@@ -21,9 +24,8 @@ async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
   }
 }
 
-// Load API keys from environment or use defaults
-const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
-const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || "";
+// Serper.dev API for web research
+const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
 
 function getGroq() {
   if (!process.env.GROQ_API_KEY) {
@@ -34,63 +36,52 @@ function getGroq() {
   });
 }
 
-// Google Search function for web research
-async function googleSearch(query: string): Promise<string[]> {
+async function serperSearch(query: string): Promise<string[]> {
   try {
-    if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-      console.log("⚠️  Google Search API not configured - install will use Groq-only research");
+    if (!SERPER_API_KEY) {
+      console.log("⚠️  Serper API not configured - research will use Groq-only mode");
       return [];
     }
 
     // Validate query - skip if it contains error messages or is too short
     if (!query || query.length < 3 || query.length > 200) {
-      console.log(`Skipping Google Search: query too short/long (${query.length} chars)`);
+      console.log(`Skipping search: query too short/long (${query.length} chars)`);
       return [];
     }
 
-    // Skip if query looks like an error message
-    if (query.includes("[") || query.includes("Failed") || query.includes("could not") || query.includes("extract")) {
-      console.log("Skipping Google Search: query appears to be error message");
-      return [];
-    }
+    // Clean the query
+    const cleanQuery = query.replace(/[^\w\s]/g, " ").trim();
 
-    // Clean the query - remove special characters that might cause 400 errors
-    const cleanQuery = query.replace(/[^\w\s]/g, " ").trim().split(/\s+/).slice(0, 8).join(" ");
-
-    if (cleanQuery.length < 3) {
-      console.log("Skipping Google Search: cleaned query too short");
-      return [];
-    }
-
-    console.log(`🔍 Searching Google for: "${cleanQuery}"`);
-    const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&num=3`;
-
-    const response = await axios.get(url, {
-      timeout: 5000,
-      validateStatus: () => true // Don't throw on any status code
-    });
+    console.log(`🔍 Searching via Serper for: "${cleanQuery}"`);
+    
+    const response = await axios.post('https://google.serper.dev/search', 
+      { q: cleanQuery, num: 3 },
+      {
+        headers: {
+          'X-API-KEY': SERPER_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 5000,
+        validateStatus: () => true
+      }
+    );
 
     if (response.status !== 200) {
-      if (response.status === 403) {
-        console.warn("⚠️  Google Search API 403 (Quota/Permission): Disabling search for this request.");
-        return [];
-      }
-      console.warn(`❌ Google Search API error (${response.status}):`, response.data?.error?.message || response.statusText);
+      console.warn(`❌ Serper API error (${response.status}):`, response.data?.message || response.statusText);
       return [];
     }
 
-    const results = response.data?.items || [];
+    const results = response.data?.organic || [];
     if (results.length > 0) {
-      console.log(`✅ Found ${results.length} Google Search results`);
+      console.log(`✅ Found ${results.length} Serper results`);
     }
+    
     return results.map((item: any) => `${item.title}: ${item.snippet}`).slice(0, 3);
   } catch (error: any) {
-    console.warn("❌ Google Search failed:", error.message);
+    console.warn("❌ Serper search failed:", error.message);
     return [];
   }
 }
-
-// OCR.space API call removed (unused)
 
 async function callOcrSpaceBuffer(buf: Buffer, filename: string): Promise<string> {
   try {
@@ -156,35 +147,25 @@ async function callLocalPythonExtract(buf: Buffer, filename: string): Promise<st
   }
 }
 
-// Optimize image for OCR (grayscale, resize, contrast)
 async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
   try {
     const img = sharp(buffer);
     const meta = await img.metadata();
 
-    // Check brightness to see if we should invert (e.g. dark mode screenshots)
     const small = await img.clone().resize(200).greyscale().raw().toBuffer();
     let avg = 0;
     for (let i = 0; i < small.length; i++) avg += small[i];
     avg = avg / small.length;
 
     const targetWidth = Math.min(2000, Math.max(1000, meta.width || 1200));
-
     let pipeline = img.resize({ width: targetWidth, withoutEnlargement: false });
 
-    // If dark background (avg < 100), invert to make it black-on-white for better OCR
     if (avg < 100) {
-      console.log("OCR Preprocess: Dark background detected, inverting image.");
-      pipeline = pipeline
-        .flatten({ background: "#000000" })
-        .negate()
-        .modulate({ brightness: 1.05, saturation: 0.0 }); // Grayscale + brighten
+      pipeline = pipeline.flatten({ background: "#000000" }).negate().modulate({ brightness: 1.05, saturation: 0.0 });
     } else {
-      // Light background: just grayscale and slight contrast
-      pipeline = pipeline.modulate({ saturation: 0.0, brightness: 1.0 }); // Grayscale
+      pipeline = pipeline.modulate({ saturation: 0.0, brightness: 1.0 });
     }
 
-    // JPEG is much smaller than PNG and reduces OCR.space validation failures on size.
     return await pipeline.jpeg({ quality: 80 }).toBuffer();
   } catch (error: any) {
     console.warn("Image optimization failed, using original:", error.message);
@@ -192,7 +173,6 @@ async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
   }
 }
 
-// Extract text from image (base64 or buffer) -> delegates to Python
 export async function extractTextFromImage(imageData: string | Buffer, filename: string = "image.png"): Promise<string> {
   try {
     let buffer: Buffer;
@@ -203,27 +183,30 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
       buffer = imageData;
     }
 
-    // Preprocess image for better OCR results
     const optimizedBuffer = await optimizeImageForOCR(buffer);
 
-    const ocrSpaceText = await callOcrSpaceBuffer(optimizedBuffer, filename);
-    if (
-      ocrSpaceText.includes("File failed validation") ||
-      ocrSpaceText.includes("exceeds") ||
-      ocrSpaceText.includes("timed out") ||
-      ocrSpaceText.includes("maximum page limit")
-    ) {
-      const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+        const result = await geminiOCR(optimizedBuffer, mimeType);
+        if (result && result.length > 50) return result;
+      }
+    } catch (e: any) {
+      console.warn("Gemini OCR failed, falling back:", e.message);
+    }
+
+    const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
+    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
       return pyText;
     }
-    return ocrSpaceText;
+
+    return await callOcrSpaceBuffer(optimizedBuffer, filename);
   } catch (error: any) {
     console.error("Image extraction error:", error.message);
     return "[Failed to process image]";
   }
 }
 
-// PDF extraction -> delegates to Python
 export async function extractTextFromPDF(pdfData: string | Buffer, filename: string = "document.pdf"): Promise<string> {
   try {
     let buffer: Buffer;
@@ -234,37 +217,31 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
       buffer = pdfData;
     }
     const parsedText = await tryExtractTextFromPdfParse(buffer);
-    if (parsedText) {
-      console.log(`PDF has embedded text (pdf-parse): ${filename}`);
+    if (parsedText && parsedText.length > 500) {
       return parsedText;
     }
 
-    console.log(`Using OCR.space for scanned PDF: ${filename}`);
-    // OCR.space has file-size limits; large scanned PDFs should use local Python OCR service.
-    const isLarge = buffer.length > 4 * 1024 * 1024;
-    if (isLarge) {
-      console.log(`PDF is large (${Math.round(buffer.length / 1024 / 1024)}MB). Using local Python OCR: ${filename}`);
-      return await callLocalPythonExtract(buffer, filename);
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        const result = await geminiOCR(buffer, "application/pdf");
+        if (result && result.trim().length > 10) return result;
+      }
+    } catch (e: any) {
+      console.error("[Gemini] PDF OCR failed:", e.message);
     }
 
-    const ocrSpaceText = await callOcrSpaceBuffer(buffer, filename);
-    if (
-      ocrSpaceText.includes("File failed validation") ||
-      ocrSpaceText.includes("exceeds") ||
-      ocrSpaceText.includes("timed out") ||
-      ocrSpaceText.includes("maximum page limit")
-    ) {
-      return await callLocalPythonExtract(buffer, filename);
+    const pyText = await callLocalPythonExtract(buffer, filename);
+    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
+      return pyText;
     }
-    return ocrSpaceText;
+
+    return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PDF extraction error:", error.message);
     return `[Error processing PDF: ${error.message}]`;
   }
 }
 
-
-// PPT extraction -> delegates to Python
 export async function extractTextFromPPT(pptData: string | Buffer, filename: string = "presentation.pptx"): Promise<string> {
   try {
     let buffer: Buffer;
@@ -274,7 +251,6 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
     } else {
       buffer = pptData;
     }
-    console.log(`Using OCR.space for PPT: ${filename}`);
     return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PPT extraction error:", error.message);
@@ -282,38 +258,20 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
   }
 }
 
-// Extract text from file (auto-detect PDF or image)
-export async function extractTextFromFile(
-  fileData: string | Buffer,
-  filename: string
-): Promise<string> {
+export async function extractTextFromFile(fileData: string | Buffer, filename: string): Promise<string> {
   const name = (filename || "").toLowerCase();
-
-  if (name.endsWith(".pdf")) {
-    return extractTextFromPDF(fileData, filename);
-  } else if (
-    name.endsWith(".png") ||
-    name.endsWith(".jpg") ||
-    name.endsWith(".jpeg") ||
-    name.endsWith(".tiff") ||
-    name.endsWith(".bmp") ||
-    name.endsWith(".webp")
-  ) {
-    return extractTextFromImage(fileData, filename);
-  } else {
-    // Attempt PDF extraction first, then image extraction as fallback
-    const pdfResult = await extractTextFromPDF(fileData, filename);
-    if (!pdfResult.includes("[⚠️")) {
-      return pdfResult;
-    }
-    return extractTextFromImage(fileData, filename);
-  }
+  if (name.endsWith(".pdf")) return extractTextFromPDF(fileData, filename);
+  if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".tiff") || name.endsWith(".bmp") || name.endsWith(".webp")) return extractTextFromImage(fileData, filename);
+  
+  const pdfResult = await extractTextFromPDF(fileData, filename);
+  if (!pdfResult.includes("[⚠️")) return pdfResult;
+  return extractTextFromImage(fileData, filename);
 }
 
-// Generate summary and key points from text using Groq
 export async function generateSummary(
   text: string,
-  language: string = "English"
+  language: string = "English",
+  preferredModel: string = "llama-3.3-70b-versatile"
 ): Promise<{
   summary: string;
   keyPoints: string[];
@@ -321,207 +279,166 @@ export async function generateSummary(
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }> {
   try {
-    // Truncate text to avoid Groq token limits (max ~50000 chars for Llama 3 70b)
-    const maxTextLength = 50000;
-    const truncatedText = text.length > maxTextLength
-      ? text.substring(0, maxTextLength) + "...[content truncated]"
-      : text;
+    const maxTextLength = preferredModel.includes("gemini") ? 200000 : 100000;
+    const truncatedText = text.length > maxTextLength ? text.substring(0, maxTextLength) + "...[truncated]" : text;
+    console.log(`Generating summary using ${preferredModel} for ${truncatedText.length} characters in ${language}`);
 
-    console.log(`Generating summary for ${truncatedText.length} characters (original: ${text.length}) in ${language}`);
+    const systemPrompt = 
+      `ACT AS A SENIOR UNIVERSITY PROFESSOR & LEAD EXAMINER. YOUR GOAL IS TO PROVIDE THE HIGHEST ACCURACY, 100% EXHAUSTIVE, AND LEGALLY CORRECT SOLUTIONS.
+      
+      ⚠️ STRICT OPERATIONAL FLOW:
+      Step 1: SILENT REASONING. Locate every numerical value, balance, and problem requirement. Determine the Add/Less or Dr/Cr logic before writing.
+      Step 2: EXHAUSTIVE LESSON. Do not miss any detail. Treat this as a complete classroom session.
+      
+      ⚠️ MANDATORY RESPONSE STRUCTURE (USE EXACTLY THESE HEADERS):
+      ## 1. OVERVIEW
+      (Identify the topic and ALL problems that need solving.)
+      
+      ## 2. LESSON_AND_SOLUTION
+      (This is 90% of the response. MUST BE EXHAUSTIVE.
+      - ⚠️ MULTI-PROBLEM RULE: If there are multiple questions or problems in the text, you MUST solve EVERY SINGLE ONE. Do not skip any.
+      - MATH: Solve each problem with a Table. Use Add (+) / Less (-) logic for Reconciliation/BRS. NEVER skip a figure. Show final totals for every problem.
+      - THEORY: Comprehensive notes, Key Terminology (detailed), and Exam Concepts. Provide deep explanations for all theory.)
+      
+      ## 3. TAKEAWAYS
+      (The absolute must-know final answers or concepts for exams.)
+      
+      ACCOUNTING PROFORMAS:
+      Reconciliation: Start with Book A profit -> Add (+) income/credits only in Book B, over-recovered costs, etc. -> Less (-) expenses/debits only in Book B. -> Final reconciled profit.
+      BRS: Start with Cash Book -> Add/Less reconciling items -> Final Pass Book balance.
+      
+      CRITICAL: Output ONLY these three numbered headers. BE AS VERBOSE AS POSSIBLE. IF NECESSARY, GENERATE A VERY LONG RESPONSE TO ENSURE COMPLETENESS.`;
 
-    const groq = getGroq();
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert exam tutor and study guide creator. Your goal is to create a **COMPREHENSIVE, DETAILED** study guide from the provided lecture notes.\n" +
-            `**IMPORTANT**: Output the entire study guide in **${language}**. If the input text is in a different language, TRANSLATE it and summarize it in **${language}**.\n` +
-            "**IMPORTANT**: The user is studying for an exam. Do NOT summarize briefly. Do NOT skip details. EXPLAIN EVERYTHING.\n" +
-            "Structure your response CLEARLY using **BOLD CAPITALIZED HEADERS** (e.g., **CORE CONCEPTS**, **DETAILED ANALYSIS**) instead of hashtags (#).\n" +
-            "Do NOT use markdown headers like # or ##. Use **BOLD** for emphasis.\n" +
-            "For the Key Points section, you MUST assign a weightage (High/Medium/Low) to each point based on its importance/exam probability.\n" +
-            "**KEY POINTS FORMAT REQUIREMENT**:\n" +
-            "- Do NOT say 'This point covers...' or 'The slide discusses...'.\n" +
-            "- DIRECTLY define the concept and explain it in 2-3 detailed sentences.\n" +
-            "- Format: '- [High Weightage] **Concept Name**: Definition. Detailed explanation of why it matters and how it works.'\n" +
-            "Avoid excessive newlines between headers and content.\n" +
-            "**INSTRUCTIONS**:\n" +
-            "1. **Overview**: Brief intro.\n" +
-            "2. **Detailed Notes**: Go through the content slide-by-slide or topic-by-topic. Expand on bullet points. Use the speaker notes for context.\n" +
-            "3. **Key Terminology**: Definitions of important terms.\n" +
-            "4. **EXAM CONCEPTS & DEFINITIONS**: Do NOT just predict questions. Instead, list key concepts that are likely to be on the exam and provide their **DEFINITIONS** and **EXAMPLES**. Start with 'Here are the key concepts for the exam:'.\n",
-        },
-        {
-          role: "user",
-          content: `Create a comprehensive, detailed study guide from these notes. Do not leave out any important details:\n\n${truncatedText}`,
-        },
-      ],
-      temperature: 0.5,
-      max_tokens: 4000,
-    });
+    const userPrompt = `Professor, solve EVERY problem in this text using tables and provide exhaustive notes for all theory units.\n\n${truncatedText}`;
+    let summaryText = "";
+    let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-    const summaryText = completion.choices[0].message.content || "";
-
-    // Initialize usage tracking
-    const totalUsage = {
-      promptTokens: completion.usage?.prompt_tokens || 0,
-      completionTokens: completion.usage?.completion_tokens || 0,
-      totalTokens: completion.usage?.total_tokens || 0,
+    const callGemini = async (model: string) => {
+      const m = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
+      const res = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], m);
+      return { content: res.content, usage: res.usage };
     };
 
-    const lines = summaryText.split("\n");
-    const keyPoints = lines
-      .filter((line) => /^(\d+\.|[-•*])\s+/.test(line))
-      .map((line) => line.replace(/^(\d+\.|[-•*])\s+/, "").trim())
-      .filter((point) => point.length > 0)
-      .slice(0, 7);
+    const callGroq = async (model: string) => {
+      const groq = getGroq();
+      const res = await groq.chat.completions.create({
+        model: model as any || "llama-3.3-70b-versatile",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        temperature: 0.1,
+        max_tokens: 8192,
+      });
+      return { 
+        content: res.choices[0]?.message?.content || "", 
+        usage: { promptTokens: res.usage?.prompt_tokens || 0, completionTokens: res.usage?.completion_tokens || 0, totalTokens: res.usage?.total_tokens || 0 }
+      };
+    };
 
-    if (keyPoints.length === 0) {
-      keyPoints.push(summaryText.slice(0, 200));
+    try {
+      if (preferredModel.includes("gemini")) {
+        const res = await callGemini(preferredModel);
+        summaryText = res.content;
+        totalUsage = res.usage;
+      } else {
+        const res = await callGroq(preferredModel);
+        summaryText = res.content;
+        totalUsage = res.usage;
+      }
+    } catch (primaryError: any) {
+      console.warn(`[Summarize] Primary model '${preferredModel}' failed: ${primaryError.message}. Attempting fallback...`);
+      
+      try {
+        if (preferredModel.includes("gemini")) {
+          console.log(`[Summarize] Falling back from Gemini to Llama...`);
+          const res = await callGroq("llama-3.3-70b-versatile");
+          summaryText = res.content;
+          totalUsage = res.usage;
+        } else {
+          console.log(`[Summarize] Falling back from Llama to Gemini...`);
+          const res = await callGemini("gemini-1.5-flash");
+          summaryText = res.content;
+          totalUsage = res.usage;
+        }
+      } catch (fallbackError: any) {
+        console.error(`[Summarize] Fallback model also failed: ${fallbackError.message}`);
+        
+        const isRateLimit = (e: any) => {
+          try {
+            const msg = (typeof e === 'object' ? JSON.stringify(e) : String(e)).toLowerCase();
+            return msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests') || e?.status === 429;
+          } catch {
+            return false;
+          }
+        };
+        
+        if (isRateLimit(primaryError) || isRateLimit(fallbackError)) {
+             throw new Error("You have run out of AI credits. Please upgrade your plan to continue generating.");
+        }
+        throw primaryError; 
+      }
     }
 
-    // Extract and research main topics from key points
-    console.log("Extracting topics for web research...");
-    const topicExplanations: Record<string, string> = {};
+    const lines = summaryText.split("\n");
+    const keyPoints = lines.filter(l => /^(\d+\.|[-•*])\s+/.test(l)).map(l => l.replace(/^(\d+\.|[-•*])\s+/, "").trim()).filter(p => p.length > 0).slice(0, 7);
+    if (keyPoints.length === 0) keyPoints.push(summaryText.slice(0, 200).replace(/#/g, ""));
 
-    // Extract first 3-4 topics from key points for web research
-    const topicsToResearch = keyPoints.slice(0, 4).map(point => {
-      const match = point.match(/^([^:]+?)(?:\s*[:—]|$)/);
-      return match ? match[1].trim() : point.split(" ").slice(0, 3).join(" ");
+    const topicExplanations: Record<string, string> = {};
+    const topics = keyPoints.slice(0, 4).map(p => {
+      const match = p.match(/^([^:]+?)(?:\s*[:—]|$)/);
+      return match ? match[1].trim() : p.split(" ").slice(0, 3).join(" ");
     });
 
-    // Run Google Search in parallel with timeout to avoid blocking
-    console.log("Starting parallel web research (with timeout)...");
-    const googleSearchPromises = topicsToResearch.map(topic =>
+    const searchPromises = topics.map(topic =>
       Promise.race([
-        googleSearch(topic).then(results => ({ topic, results })),
-        new Promise<{ topic: string; results: string[] }>(resolve =>
-          setTimeout(() => resolve({ topic, results: [] }), 3000) // 3 second timeout per search
-        )
-      ]).catch(() => ({ topic, results: [] }))
+        serperSearch(topic).then(results => ({ topic, results })),
+        new Promise(resolve => setTimeout(() => resolve({ topic, results: [] }), 3000))
+      ]) as Promise<{topic: string, results: string[]}>
     );
 
-    const searchResults = await Promise.all(googleSearchPromises);
-    const searchResultsMap: Record<string, string[]> = {};
-    searchResults.forEach(result => {
-      searchResultsMap[result.topic] = result.results;
-    });
+    const searchResults = await Promise.all(searchPromises);
+    const searchMap: Record<string, string[]> = {};
+    searchResults.forEach(r => searchMap[r.topic] = r.results);
 
-    // Research each topic using Groq for detailed explanations (in parallel)
-    const researchPromises = topicsToResearch.map(async (topic) => {
+    const researchPromises = topics.map(async (topic) => {
       try {
-        console.log(`Researching topic: "${topic}"`);
+        const results = searchMap[topic] || [];
+        const context = results.length > 0 ? `\n\nWeb results:\n${results.join("\n")}` : "";
+        const rSys = "Expert educational research assistant. Clear, detailed 3-4 sentence explanations.";
+        const rUsr = `Explain: "${topic}".${context}`;
 
-        // Use cached Google Search results
-        let googleContext = "";
-        const results = searchResultsMap[topic] || [];
-        if (results.length > 0) {
-          console.log(`✅ Using ${results.length} Google Search results for "${topic}"`);
-          googleContext = `\n\nWeb Research Results:\n${results.join("\n")}\n`;
+        if (preferredModel.includes("gemini")) {
+          const m = preferredModel === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
+          const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], m);
+          topicExplanations[topic] = res.content.trim();
+          totalUsage.promptTokens += res.usage.promptTokens;
+          totalUsage.completionTokens += res.usage.completionTokens;
+          totalUsage.totalTokens += res.usage.totalTokens;
+        } else {
+          const groq = getGroq();
+          const res = await groq.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [{ role: "system", content: rSys }, { role: "user", content: rUsr }], temperature: 0.7, max_tokens: 200 });
+          topicExplanations[topic] = (res.choices[0].message.content || "").trim();
+          totalUsage.promptTokens += res.usage?.prompt_tokens || 0;
+          totalUsage.completionTokens += res.usage?.completion_tokens || 0;
+          totalUsage.totalTokens += res.usage?.total_tokens || 0;
         }
-
-        // Use Groq to synthesize explanation with Google search context
-        const researchCompletion = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert educational research assistant. Provide clear, detailed, accurate explanations (3-4 sentences) of academic topics for students. Use the provided web research context to enhance your explanation with current and authoritative information.",
-            },
-            {
-              role: "user",
-              content: `Provide a detailed, educational explanation of: "${topic}". Keep it to 3-4 sentences and include relevant information.${googleContext}`,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 200,
-        });
-
-        if (researchCompletion.usage) {
-          totalUsage.promptTokens += researchCompletion.usage.prompt_tokens || 0;
-          totalUsage.completionTokens += researchCompletion.usage.completion_tokens || 0;
-          totalUsage.totalTokens += researchCompletion.usage.total_tokens || 0;
-        }
-
-        const explanation = researchCompletion.choices[0].message.content || "";
-        topicExplanations[topic] = explanation.trim();
-      } catch (error: any) {
-        console.warn(`Failed to research topic "${topic}":`, error.message);
-      }
+      } catch (e) { console.warn(`Topic research failed: ${topic}`); }
     });
 
-    // Wait for all research to complete in parallel
     await Promise.all(researchPromises);
-
-    return {
-      summary: summaryText,
-      keyPoints: keyPoints.slice(0, 7),
-      topicExplanations,
-      usage: totalUsage,
-    };
-  } catch (error: any) {
-    console.error("Summary generation error:", error);
-    throw error;
+    return { summary: summaryText, keyPoints, topicExplanations, usage: totalUsage };
+  } catch (e: any) {
+    console.error("Summary error:", e);
+    throw e;
   }
 }
 
-// Combined: Extract + Summarize
-export async function extractAndSummarize(
-  fileData: string | Buffer,
-  filename: string
-): Promise<{
-  extracted: string;
-  summary: string;
-  keyPoints: string[];
-  topicExplanations?: Record<string, string>;
-  error?: string;
-  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
-}> {
+export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "llama-3.3-70b-versatile") {
   try {
     const extracted = await extractTextFromFile(fileData, filename);
-
-    if (extracted.includes("[⚠️") && extracted.includes("]")) {
-      return {
-        extracted,
-        summary: "",
-        keyPoints: [],
-        error: extracted,
-      };
-    }
-
-    // Validate extracted text length to prevent "vowels" hallucination
-    const cleanedText = extracted.replace(/\s/g, "");
-    if (cleanedText.length < 50) {
-      console.warn(`⚠️  OCR Extracted insufficient text (${cleanedText.length} chars). Aborting summary.`);
-      console.log(`Preview of extracted text: "${extracted.slice(0, 100)}..."`);
-
-      return {
-        extracted,
-        summary: "Unable to generate a summary. The document appears to have very little readable text. Please check the image quality or file content.",
-        keyPoints: [],
-        topicExplanations: {},
-        error: "Insufficient text extracted for summarization."
-      };
-    }
-
-    const { summary, keyPoints, topicExplanations, usage } = await generateSummary(extracted);
-
-    return {
-      extracted,
-      summary,
-      keyPoints,
-      topicExplanations,
-      usage,
-    };
-  } catch (error: any) {
-    console.error("Extract and summarize error:", error);
-    return {
-      extracted: "",
-      summary: "",
-      keyPoints: [],
-      error: `Error: ${error.message}`,
-    };
+    if (extracted.includes("[⚠️") && extracted.includes("]")) return { extracted, summary: "", keyPoints: [], error: extracted };
+    if (extracted.replace(/\s/g, "").length < 50) return { extracted, summary: "[Insufficient text]", keyPoints: [], error: "Insufficient text." };
+    const res = await generateSummary(extracted, "English", preferredModel);
+    return { extracted, ...res };
+  } catch (e: any) {
+    return { extracted: "", summary: "", keyPoints: [], error: e.message };
   }
 }

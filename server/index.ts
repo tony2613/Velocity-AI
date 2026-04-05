@@ -1,4 +1,4 @@
-// server/index.ts  (or main.ts) - corrected version
+// server/index.ts  (Trigger reload to fix DNS cache)
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -73,6 +73,7 @@ app.use((req, res, next) => {
   // register routes (your routes.ts should export registerRoutes)
   console.log("[Node.js] Calling registerRoutes...");
   const server = await registerRoutes(app);
+  server.timeout = 600000; // 10 minutes timeout for large long-form AI generations
   console.log("[Node.js] registerRoutes completed.");
 
   // Express error handler

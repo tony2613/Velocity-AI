@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function UploadZone() {
+  const [, setLocation] = useLocation();
   const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [pastedText, setPastedText] = useState("");
@@ -43,8 +45,9 @@ export default function UploadZone() {
       if (!response.ok) throw new Error("Failed to create note");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      // Clear form
       setPastedText("");
       setTitle("");
       setSubject("");
@@ -53,10 +56,16 @@ export default function UploadZone() {
       setAudioFileName("");
       setRecordedAudioUrl("");
       setFileType("");
+
       toast({
         title: t("upload.success"),
         description: t("upload.success_desc"),
       });
+
+      // Redirect to the new note
+      if (data && data.id) {
+        setLocation(`/summary/${data.id}`);
+      }
     },
     onError: (error: Error) => {
       let message = error.message;
@@ -73,16 +82,18 @@ export default function UploadZone() {
 
   const processImageMutation = useMutation({
     mutationFn: async (data: { imageData: string; title: string; subject: string; isPDF?: boolean; language?: string }) => {
+      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
       const response = await fetch("/api/process-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, preferredModel }),
       });
       if (!response.ok) throw new Error("Failed to process file");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      // Clear form
       setPastedText("");
       setTitle("");
       setSubject("");
@@ -91,10 +102,16 @@ export default function UploadZone() {
       setAudioFileName("");
       setRecordedAudioUrl("");
       setFileType("");
+
       toast({
         title: t("upload.file_processed"),
         description: t("upload.file_processed_desc"),
       });
+
+      // Redirect to the new note's summary view
+      if (data && data.note && data.note.id) {
+        setLocation(`/summary/${data.note.id}`);
+      }
     },
     onError: (error: Error) => {
       let message = error.message;

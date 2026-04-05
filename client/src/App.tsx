@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
+import FloatingCana from "./components/FloatingCana";
 
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
@@ -78,6 +79,7 @@ function App() {
         <AuthProvider>
           <LanguageProvider>
             <TooltipProvider>
+              <FloatingCana />
               <Toaster />
               <Router />
             </TooltipProvider>

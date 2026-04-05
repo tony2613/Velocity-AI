@@ -42,14 +42,15 @@ function cleanup() {
     const killProcess = (pid) => {
         if (!pid) return;
         try {
-            // Use taskkill on Windows to kill process tree (/T) force (/F)
             if (process.platform === 'win32') {
-                spawn('taskkill', ['/pid', pid.toString(), '/f', '/t']);
+                // Use /F for force and /T for tree to ensure all children are killed
+                // Redirecting output to NUL to avoid blocking or prompts
+                execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
             } else {
-                process.kill(-pid, 'SIGKILL'); // negative pid kills process group on unix
+                process.kill(-pid, 'SIGKILL');
             }
         } catch (e) {
-            // ignore
+            // ignore if process already gone
         }
     };
 

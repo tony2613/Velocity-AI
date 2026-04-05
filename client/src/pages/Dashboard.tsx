@@ -5,16 +5,36 @@ import UploadZone from "@/components/UploadZone";
 import { FileText, CheckCircle, Flame } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Note } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import type { Note, Quiz } from "@shared/schema";
 import { useLanguage } from "@/context/LanguageContext";
+import { isToday, isYesterday } from "date-fns";
 
 export default function Dashboard() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { data: notes, isLoading } = useQuery<Note[]>({
     queryKey: ["/api/notes"],
   });
 
+  const { data: quizzes } = useQuery<Quiz[]>({
+    queryKey: ["/api/quizzes"],
+  });
+
   const notesCount = notes?.length || 0;
+  const quizzesCount = quizzes?.length || 0;
+
+  // Simple Streak Logic
+  const getStreak = () => {
+    if (!user?.lastUploadDate) return "0 days";
+    const lastDate = new Date(user.lastUploadDate);
+    if (isToday(lastDate) || isYesterday(lastDate)) {
+      // For a real streak we'd need a history table, but we'll use a placeholder logic 
+      // or just "Active" if they uploaded recently.
+      return "Active"; 
+    }
+    return "0 days";
+  };
 
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -47,14 +67,14 @@ export default function Dashboard() {
           <StatsCard
             icon={CheckCircle}
             label={t("dash.quizzes_available")}
-            value={0}
-            trend="Generate quizzes from notes"
+            value={quizzesCount}
+            trend={quizzesCount > 0 ? t("quizzes.take") : "Generate quizzes from notes"}
           />
           <StatsCard
             icon={Flame}
             label={t("dash.study_streak")}
-            value="0 days"
-            trend="Start your streak today!"
+            value={getStreak()}
+            trend={getStreak() === "Active" ? "You're on fire!" : "Start your streak today!"}
           />
         </div>
 

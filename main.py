@@ -33,33 +33,51 @@ ocr_instance = None
 def get_ocr():
     global ocr_instance
     if ocr_instance is None:
-        print("Loading PaddleOCR model (Lazy Load)...")
+        print("Loading PaddleOCR model (Bulletproof CPU Mode)...")
         try:
-            # Force PP-OCRv4 to avoid heavy v5 server model downloads that cause timeouts
-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True, ocr_version='PP-OCRv4', show_log=False)
-            print("PaddleOCR loaded successfully with MKLDNN enabled.")
+            # Disable MKLDNN and force CPU for maximum compatibility on Windows
+            # show_log=False reduces terminal noise and potential output stream issues
+            ocr_instance = PaddleOCR(
+                use_angle_cls=False, 
+                lang="en", 
+                use_gpu=False, 
+                enable_mkldnn=False, 
+                show_log=False, 
+                ocr_version='PP-OCRv4'
+            )
+            print("PaddleOCR loaded successfully.")
         except Exception as e:
-            print(f"Failed to load with MKLDNN, falling back to safe mode: {e}")
-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False, ocr_version='PP-OCRv4', show_log=False)
+            print(f"CRITICAL ERROR: PaddleOCR failed to initialize: {e}")
+            ocr_instance = None
     return ocr_instance
 
 def perform_ocr_on_file(file_path):
     """Helper to run OCR on a file path directly. 
     This is more stable than passing numpy arrays on Windows."""
     try:
-        # cls=False because we disabled angle classifier in init, but explicit is better
         ocr = get_ocr()
-        result = ocr.ocr(file_path, cls=False)
+        if ocr is None:
+            print("ERROR: OCR instance could not be initialized.")
+            return ""
+            
+        print(f"DEBUG: Running PaddleOCR on {file_path}")
+        # result = ocr.ocr(img, ...)
+        result = ocr.ocr(file_path)
+        
         text = ""
         if result and result[0]:
             for line in result[0]:
-                text += line[1][0] + "\n"
-        if not text.strip():
-            print(f"WARNING: OCR returned empty text for {file_path}")
+                if line and len(line) > 1:
+                    text += line[1][0] + "\n"
+        
+        print(f"DEBUG: OCR result length for {file_path}: {len(text)}")
         return text
     except Exception as e:
-        print(f"OCR failed for {file_path}: {e}")
-        return ""
+        print(f"OCR failed for {file_path}: {str(e)}")
+        # If it's the MKLDNN error specifically, we log a warning for the user
+        if "MKLDNN" in str(e) or "ConvertPirAttribute" in str(e):
+             print("⚠️  Warning: PaddleOCR Windows compatibility issue detected. Falling back to next engine...")
+        return f"[Python OCR failed for this page: {str(e)}]"
 
 def upload_to_cloudinary(file_path):
     """Uploads a file to Cloudinary and returns the secure URL."""
@@ -218,44 +236,20 @@ def extract(file: UploadFile = File(...)):
         text = ""
 
         if name.endswith(".pdf"):
-            total_pages = 0
             doc = None
             try:
+                print(f"DEBUG: Opening PDF from memory stream (size: {len(content)} bytes)")
                 doc = fitz.open(stream=content, filetype="pdf")
-                total_pages = len(doc) # Trigger access to check for errors
+                total_pages = len(doc)
+                print(f"DEBUG: PDF opened successfully. Total pages: {total_pages}")
             except Exception as e:
-                print(f"WARNING: Memory PDF processing failed ({e}). Falling back to temp file.")
-                if 'doc' in locals() and doc:
-                    doc.close()
-                
-                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                    tmp.write(content)
-                    temp_pdf_path = tmp.name
-                
-                try:
-                    doc = fitz.open(temp_pdf_path)
-                    total_pages = len(doc)
-                except Exception as e_fallback:
-                    print(f"ERROR: Fallback PyMuPDF processing failed: {e_fallback}. Attempting direct PaddleOCR...")
-                    # Close doc if partially opened
-                    if 'doc' in locals() and doc:
-                        try: doc.close() 
-                        except: pass
-                    doc = None # Signal that fitz failed
+                print(f"ERROR: PyMuPDF could not open PDF from stream: {e}")
+                import traceback
+                print(traceback.format_exc())
+                return JSONResponse(status_code=400, content={"error": f"Invalid or corrupted PDF file: {str(e)}"})
 
-            
-                # Fallback: PyMuPDF failed entirely. Use PaddleOCR directly.
-                print("DEBUG: PyMuPDF extraction failed. Attempting fallback...")
-                
-                # If fitz failed to open, we can't rasterize it easily.
-                # Assuming PaddleOCR might not handle PDF paths directly in this env.
-                # Let's try to just return a clear error or try one last desperate attempt if Paddle supports it.
-                # Better to return error than verify empty text.
-                print("ERROR: Corrupted PDF or password protected. Cannot extract.")
-                text = "[Error: PDF file is corrupted or password protected. Please try another file.]"
-
-            if doc:
-                print(f"DEBUG: PDF opened. Total pages: {total_pages}")
+            if total_pages == 0:
+                return { "text": "[The PDF appeared to be empty or could not be read.]" }
             
             for page_num, page in enumerate(doc or []):
                 print(f"DEBUG: Processing Page {page_num + 1}/{total_pages}...")

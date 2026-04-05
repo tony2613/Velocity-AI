@@ -1,0 +1,3692 @@
+=== UNCOMMITTED CHANGES ===
+diff --git a/client/src/components/Navbar.tsx b/client/src/components/Navbar.tsx
+index 5d9efe8..729e496 100644
+--- a/client/src/components/Navbar.tsx
++++ b/client/src/components/Navbar.tsx
+@@ -42,6 +42,11 @@ export default function Navbar() {
+   const [selectedResult, setSelectedResult] = useState<any | null>(null);
+   const setLastSearchedQuestion = (_v: string) => { }; // kept for onSuccess call — value unused
+ 
++  const usageLimit = user?.subscriptionTier === 'elite' ? 200 : user?.subscriptionTier === 'pro' ? 50 : 5;
++  const dailyUsage = user?.dailyUploadCount || 0;
++  const isNearLimit = dailyUsage >= usageLimit - 1;
++  const isAtLimit = dailyUsage >= usageLimit;
++
+   const searchQuestionMutation = useMutation({
+     mutationFn: async (q: string) => {
+       const res = await fetch("/api/search-question", {
+@@ -241,6 +246,14 @@ export default function Navbar() {
+               <ThemeToggle />
+               {user ? (
+                 <>
++                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2
++                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
++                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
++                      : 'bg-primary/10 text-primary border-primary/20'}`}
++                  >
++                    <Sparkles className="h-3 w-3" />
++                    <span>{dailyUsage} / {usageLimit}</span>
++                  </div>
+                   <Link href="/upload">
+                     <Button className="gap-2 mr-2">
+                       <Upload className="h-4 w-4" />
+@@ -385,6 +398,20 @@ export default function Navbar() {
+           <div className="flex flex-col gap-2">
+             {user ? (
+               <>
++                <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
++                  <div className="flex flex-col">
++                    <span className="text-xs font-semibold uppercase text-muted-foreground">App Usage</span>
++                    <span className="text-sm font-medium">Daily Credits</span>
++                  </div>
++                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold
++                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
++                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
++                      : 'bg-primary/10 text-primary border-primary/20'}`}
++                  >
++                    <Sparkles className="h-3 w-3" />
++                    {dailyUsage} / {usageLimit}
++                  </div>
++                </div>
+                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
+                   {t("nav.dashboard")}
+                 </Link>
+diff --git a/client/src/components/UploadZone.tsx b/client/src/components/UploadZone.tsx
+index ae4c00a..c9eb553 100644
+--- a/client/src/components/UploadZone.tsx
++++ b/client/src/components/UploadZone.tsx
+@@ -1,4 +1,5 @@
+ import { useState, useRef, useEffect } from "react";
++import { useLocation } from "wouter";
+ import { Card, CardContent } from "@/components/ui/card";
+ import { Button } from "@/components/ui/button";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+@@ -12,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
+ import { useLanguage } from "@/context/LanguageContext";
+ 
+ export default function UploadZone() {
++  const [, setLocation] = useLocation();
+   const { t } = useLanguage();
+   const [isDragging, setIsDragging] = useState(false);
+   const [pastedText, setPastedText] = useState("");
+@@ -43,8 +45,9 @@ export default function UploadZone() {
+       if (!response.ok) throw new Error("Failed to create note");
+       return response.json();
+     },
+-    onSuccess: () => {
++    onSuccess: (data) => {
+       queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
++      // Clear form
+       setPastedText("");
+       setTitle("");
+       setSubject("");
+@@ -53,10 +56,16 @@ export default function UploadZone() {
+       setAudioFileName("");
+       setRecordedAudioUrl("");
+       setFileType("");
++
+       toast({
+         title: t("upload.success"),
+         description: t("upload.success_desc"),
+       });
++
++      // Redirect to the new note
++      if (data && data.id) {
++        setLocation(`/summary/${data.id}`);
++      }
+     },
+     onError: (error: Error) => {
+       let message = error.message;
+@@ -73,16 +82,18 @@ export default function UploadZone() {
+ 
+   const processImageMutation = useMutation({
+     mutationFn: async (data: { imageData: string; title: string; subject: string; isPDF?: boolean; language?: string }) => {
++      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
+       const response = await fetch("/api/process-image", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify(data),
++        body: JSON.stringify({ ...data, preferredModel }),
+       });
+       if (!response.ok) throw new Error("Failed to process file");
+       return response.json();
+     },
+-    onSuccess: () => {
++    onSuccess: (data) => {
+       queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
++      // Clear form
+       setPastedText("");
+       setTitle("");
+       setSubject("");
+@@ -91,10 +102,16 @@ export default function UploadZone() {
+       setAudioFileName("");
+       setRecordedAudioUrl("");
+       setFileType("");
++
+       toast({
+         title: t("upload.file_processed"),
+         description: t("upload.file_processed_desc"),
+       });
++
++      // Redirect to the new note's summary view
++      if (data && data.note && data.note.id) {
++        setLocation(`/summary/${data.note.id}`);
++      }
+     },
+     onError: (error: Error) => {
+       let message = error.message;
+diff --git a/client/src/pages/Dashboard.tsx b/client/src/pages/Dashboard.tsx
+index 4455341..ce33a48 100644
+--- a/client/src/pages/Dashboard.tsx
++++ b/client/src/pages/Dashboard.tsx
+@@ -4,17 +4,38 @@ import NoteCard from "@/components/NoteCard";
+ import UploadZone from "@/components/UploadZone";
+ import { FileText, CheckCircle, Flame } from "lucide-react";
+ import { useQuery } from "@tanstack/react-query";
++import ResearchBox from "@/components/ResearchBox";
+ import { Skeleton } from "@/components/ui/skeleton";
+-import type { Note } from "@shared/schema";
++import { useAuth } from "@/hooks/use-auth";
++import type { Note, Quiz } from "@shared/schema";
+ import { useLanguage } from "@/context/LanguageContext";
++import { isToday, isYesterday } from "date-fns";
+ 
+ export default function Dashboard() {
+   const { t } = useLanguage();
++  const { user } = useAuth();
+   const { data: notes, isLoading } = useQuery<Note[]>({
+     queryKey: ["/api/notes"],
+   });
+ 
++  const { data: quizzes } = useQuery<Quiz[]>({
++    queryKey: ["/api/quizzes"],
++  });
++
+   const notesCount = notes?.length || 0;
++  const quizzesCount = quizzes?.length || 0;
++
++  // Simple Streak Logic
++  const getStreak = () => {
++    if (!user?.lastUploadDate) return "0 days";
++    const lastDate = new Date(user.lastUploadDate);
++    if (isToday(lastDate) || isYesterday(lastDate)) {
++      // For a real streak we'd need a history table, but we'll use a placeholder logic 
++      // or just "Active" if they uploaded recently.
++      return "Active"; 
++    }
++    return "0 days";
++  };
+ 
+   const formatDate = (date: Date) => {
+     const now = new Date();
+@@ -47,17 +68,19 @@ export default function Dashboard() {
+           <StatsCard
+             icon={CheckCircle}
+             label={t("dash.quizzes_available")}
+-            value={0}
+-            trend="Generate quizzes from notes"
++            value={quizzesCount}
++            trend={quizzesCount > 0 ? t("quizzes.take") : "Generate quizzes from notes"}
+           />
+           <StatsCard
+             icon={Flame}
+             label={t("dash.study_streak")}
+-            value="0 days"
+-            trend="Start your streak today!"
++            value={getStreak()}
++            trend={getStreak() === "Active" ? "You're on fire!" : "Start your streak today!"}
+           />
+         </div>
+ 
++        <ResearchBox />
++
+         <div className="grid lg:grid-cols-3 gap-8">
+           <div className="lg:col-span-2 space-y-6">
+             <div className="flex items-center justify-between">
+diff --git a/client/src/pages/Settings.tsx b/client/src/pages/Settings.tsx
+index 1e235a4..3377508 100644
+--- a/client/src/pages/Settings.tsx
++++ b/client/src/pages/Settings.tsx
+@@ -212,6 +212,39 @@ export default function Settings() {
+                             </CardContent>
+                         </Card>
+ 
++                        <Card>
++                            <CardHeader>
++                                <CardTitle>AI Model Preference 🧠</CardTitle>
++                                <CardDescription>Choose the AI model used for summaries and study guides.</CardDescription>
++                            </CardHeader>
++                            <CardContent className="space-y-4">
++                                <div className="flex items-center justify-between">
++                                    <div className="space-y-1">
++                                        <Label>Preferred Model</Label>
++                                        <p className="text-sm text-muted-foreground">
++                                            Select your default AI engine.
++                                        </p>
++                                    </div>
++                                    <Select
++                                        value={localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile"}
++                                        onValueChange={(value: any) => {
++                                            localStorage.setItem("velocity_model", value);
++                                            toast({ title: "Model Updated", description: `Default model set to ${value}` });
++                                        }}
++                                    >
++                                        <SelectTrigger className="w-[220px]">
++                                            <SelectValue placeholder="Select Model" />
++                                        </SelectTrigger>
++                                        <SelectContent>
++                                            <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 (Fast & Sharp)</SelectItem>
++                                            <SelectItem value="gemini-flash">Gemini 1.5 Flash (Balanced)</SelectItem>
++                                            <SelectItem value="gemini-pro">Gemini 1.5 Pro (Deep Reasoning)</SelectItem>
++                                        </SelectContent>
++                                    </Select>
++                                </div>
++                            </CardContent>
++                        </Card>
++
+                         <Card>
+                             <CardHeader>
+                                 <CardTitle>{t("settings.language")} 🌐</CardTitle>
+diff --git a/client/src/pages/SummaryView.tsx b/client/src/pages/SummaryView.tsx
+index f29439c..a9ab8cb 100644
+--- a/client/src/pages/SummaryView.tsx
++++ b/client/src/pages/SummaryView.tsx
+@@ -1,13 +1,17 @@
++import React, { useMemo } from "react";
+ import { useParams, Link } from "wouter";
++import ReactMarkdown from "react-markdown";
++import remarkGfm from "remark-gfm";
+ import Navbar from "@/components/Navbar";
+ import { Button } from "@/components/ui/button";
+ import { Card, CardContent, CardHeader } from "@/components/ui/card";
+-import { ArrowLeft, Sparkles, Loader2, FileText } from "lucide-react";
++import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, GraduationCap, Search } from "lucide-react";
+ import { useQuery, useMutation } from "@tanstack/react-query";
+ import { queryClient } from "@/lib/queryClient";
+ import { Skeleton } from "@/components/ui/skeleton";
+ import type { Note, Summary } from "@shared/schema";
+ import { useToast } from "@/hooks/use-toast";
++import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ 
+ export default function SummaryView() {
+   const { id } = useParams<{ id: string }>();
+@@ -17,7 +21,7 @@ export default function SummaryView() {
+     queryKey: [`/api/notes/${id}`],
+   });
+ 
+-  const { data: summary, isLoading: summaryLoading, error } = useQuery<Summary>({
++  const { data: summary, isLoading: summaryLoading, error } = useQuery<Summary & { topicExplanations?: Record<string, string> }>({
+     queryKey: [`/api/notes/${id}/summary`],
+     enabled: !!id,
+     retry: false,
+@@ -26,12 +30,18 @@ export default function SummaryView() {
+   const generateSummaryMutation = useMutation({
+     mutationFn: async () => {
+       const language = localStorage.getItem("velocity_language") || "English";
++      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
++      
+       const response = await fetch(`/api/notes/${id}/summary`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify({ language })
++        body: JSON.stringify({ language, preferredModel })
+       });
+-      if (!response.ok) throw new Error("Failed to generate summary");
++      
++      if (!response.ok) {
++          const errorData = await response.json().catch(() => ({}));
++          throw new Error(errorData.message || errorData.error || "Failed to generate summary");
++      }
+       return response.json();
+     },
+     onSuccess: () => {
+@@ -42,14 +52,56 @@ export default function SummaryView() {
+       });
+     },
+     onError: (error: Error) => {
++      const isCreditError = error.message?.toLowerCase().includes("credits") || error.message?.toLowerCase().includes("upgrade");
++      
+       toast({
+-        title: "Error",
++        title: isCreditError ? "Limit Reached" : "Generation Failed",
+         description: error.message,
+         variant: "destructive",
+       });
+     },
+   });
+ 
++  const getSection = (content: string, sectionName: string) => {
++    if (!content) return "";
++    const sections = content.split(/(?=## \d\. |## )/);
++    
++    const findSection = (name: string) => {
++      return sections.find(s => {
++        const lowerS = s.toLowerCase();
++        if (name === "overview") return /## \d\. overview|## overview/i.test(lowerS);
++        if (name === "solution") return /## \d\. lesson|## lesson|## solution|## 2\./i.test(lowerS);
++        if (name === "takeaways") return /## \d\. takeaways|## takeaways|## 3\./i.test(lowerS);
++        return lowerS.includes(name.toLowerCase());
++      });
++    };
++
++    let section = findSection(sectionName);
++    
++    // Fail-safe for Solution: If not found specifically, try to find the "middle" or "longest" part
++    if (!section && sectionName === "solution") {
++      // Try to find section 2 explicitly
++      section = sections.find(s => /^## 2\./i.test(s.trim()));
++      if (!section) {
++        // Ultimate fallback: if there are multiple sections and we can't find #2, 
++        // return everything except what looks like overview or takeaways
++        const filtered = sections.filter(s => {
++            const ls = s.toLowerCase();
++            return !ls.includes("overview") && !ls.includes("takeaways");
++        });
++        if (filtered.length > 0) return filtered.join("\n\n").replace(/## .*\n/, "").trim();
++        return content; // Last resort
++      }
++    }
++    
++    return section ? section.replace(/## .*\n/, "").trim() : "";
++  };
++
++  // Default to lesson tab for exhaustive content
++  const defaultTab = useMemo(() => {
++    return "guide";
++  }, []);
++
+   if (noteLoading || summaryLoading) {
+     return (
+       <div className="min-h-screen bg-background">
+@@ -79,9 +131,9 @@ export default function SummaryView() {
+   }
+ 
+   return (
+-    <div className="min-h-screen bg-background">
++    <div className="min-h-screen bg-background pb-20">
+       <Navbar />
+-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
++      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
+         <div className="flex items-center gap-4">
+           <Link href="/dashboard">
+             <Button variant="ghost" size="icon" data-testid="button-back">
+@@ -89,83 +141,179 @@ export default function SummaryView() {
+             </Button>
+           </Link>
+           <div className="flex-1">
+-            <h1 className="text-3xl font-bold">{note.title}</h1>
++            <h1 className="text-3xl font-bold truncate">{note.title}</h1>
+             <p className="text-muted-foreground">{note.subject}</p>
+           </div>
+         </div>
+ 
+         {summary && !error ? (
+-          <div className="space-y-6">
+-            <Card>
+-              <CardHeader>
+-                <h2 className="text-2xl font-semibold flex items-center gap-2">
+-                  <Sparkles className="h-6 w-6 text-primary" />
+-                  AI Summary
+-                </h2>
+-              </CardHeader>
+-              <CardContent className="space-y-4">
+-                <div className="prose dark:prose-invert max-w-none">
+-                  <p className="whitespace-pre-wrap text-foreground">{summary.content}</p>
+-                </div>
+-              </CardContent>
+-            </Card>
++          <Tabs defaultValue={defaultTab} className="space-y-6">
++            <div className="sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2 -mx-4 px-4 border-b">
++              <TabsList className="w-full justify-start overflow-x-auto no-scrollbar bg-transparent h-auto p-0 gap-6">
++                <TabsTrigger value="snapshot" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
++                  <Info className="h-4 w-4" /> Snapshot
++                </TabsTrigger>
++                <TabsTrigger value="guide" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
++                  <GraduationCap className="h-4 w-4" /> Full Lesson & Solution
++                </TabsTrigger>
++                <TabsTrigger value="takeaways" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
++                  <ListChecks className="h-4 w-4" /> Takeaways
++                </TabsTrigger>
++                {summary.topicExplanations && Object.keys(summary.topicExplanations).length > 0 && (
++                  <TabsTrigger value="research" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
++                    <Search className="h-4 w-4" /> Research
++                  </TabsTrigger>
++                )}
++                <TabsTrigger value="full" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
++                  <FileText className="h-4 w-4" /> Full Review
++                </TabsTrigger>
++                <TabsTrigger value="raw" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2 text-muted-foreground">
++                  <Sparkles className="h-4 w-4" /> Source
++                </TabsTrigger>
++              </TabsList>
++            </div>
+ 
+-            {summary.keyPoints.length > 0 && (
+-              <Card>
+-                <CardHeader>
+-                  <h3 className="text-xl font-semibold">Key Points</h3>
+-                </CardHeader>
+-                <CardContent>
+-                  <ul className="space-y-2">
+-                    {summary.keyPoints.map((point: string, index: number) => (
+-                      <li key={index} className="flex gap-3">
+-                        <span className="text-primary font-semibold">{index + 1}.</span>
+-                        <span>{point}</span>
++            <TabsContent value="full" className="mt-0">
++              <Card className="border-none shadow-none bg-transparent">
++                <CardContent className="p-0">
++                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
++                    <ReactMarkdown
++                      remarkPlugins={[remarkGfm]}
++                      components={{
++                        table: ({ children }) => (
++                          <div className="overflow-x-auto my-6 -mx-1 px-1">
++                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
++                          </div>
++                        ),
++                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
++                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
++                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
++                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
++                      }}
++                    >
++                      {summary.content}
++                    </ReactMarkdown>
++                  </div>
++                </CardContent>
++              </Card>
++            </TabsContent>
++
++            <TabsContent value="snapshot" className="mt-0">
++              <Card className="border-none shadow-none bg-transparent">
++                <CardContent className="p-0 space-y-4">
++                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
++                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
++                      {getSection(summary.content, "Overview") || summary.content.split("##")[0]}
++                    </ReactMarkdown>
++                  </div>
++                </CardContent>
++              </Card>
++            </TabsContent>
++
++            <TabsContent value="takeaways" className="mt-0">
++               <Card className="border-none shadow-none bg-transparent">
++                <CardContent className="p-0">
++                  <ul className="space-y-4">
++                    {(summary.keyPoints.length > 0 ? summary.keyPoints : (getSection(summary.content, "Takeaways") || getSection(summary.content, "Key")).split("\n").filter(l => /^[*-•]/.test(l.trim()))).map((point: string, index: number) => (
++                      <li key={index} className="flex gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
++                        <span className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
++                          {index + 1}
++                        </span>
++                        <span className="text-foreground/90 leading-snug">{point.replace(/^[-*•]\s+/, "")}</span>
+                       </li>
+                     ))}
+                   </ul>
+                 </CardContent>
+               </Card>
++            </TabsContent>
++
++            <TabsContent value="guide" className="mt-0">
++              <Card className="border-none shadow-none bg-transparent">
++                <CardContent className="p-0">
++                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
++                    <ReactMarkdown
++                      remarkPlugins={[remarkGfm]}
++                      components={{
++                        table: ({ children }) => (
++                          <div className="overflow-x-auto my-6 -mx-1 px-1">
++                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
++                          </div>
++                        ),
++                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
++                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
++                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
++                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
++                        h1: ({ children }) => <h1 className="text-2xl font-bold mt-8 mb-4 border-b pb-2">{children}</h1>,
++                        h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
++                        h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
++                      }}
++                    >
++                      {getSection(summary.content, "Solution") || summary.content}
++                    </ReactMarkdown>
++                  </div>
++                </CardContent>
++              </Card>
++            </TabsContent>
++
++            {summary.topicExplanations && (
++              <TabsContent value="research" className="mt-0 space-y-4">
++                {Object.entries(summary.topicExplanations).map(([topic, explanation], index) => (
++                  <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5">
++                    <CardHeader className="bg-primary/10 py-3">
++                      <h4 className="font-bold text-primary flex items-center gap-2">
++                        <Sparkles className="h-4 w-4" /> {topic}
++                      </h4>
++                    </CardHeader>
++                    <CardContent className="py-4">
++                      <p className="text-sm leading-relaxed text-foreground/80 italic">"{explanation}"</p>
++                    </CardContent>
++                  </Card>
++                ))}
++              </TabsContent>
+             )}
+ 
+-            <Card>
+-              <CardHeader>
+-                <h3 className="text-xl font-semibold">Original Notes</h3>
+-              </CardHeader>
+-              <CardContent>
+-                <p className="whitespace-pre-wrap text-muted-foreground">{note.content}</p>
+-              </CardContent>
+-            </Card>
+-          </div>
++            <TabsContent value="raw" className="mt-0">
++              <Card>
++                <CardContent className="p-4 bg-muted/30">
++                  <p className="whitespace-pre-wrap text-xs text-muted-foreground font-mono leading-tight max-h-[60vh] overflow-y-auto">
++                    {note.content}
++                  </p>
++                </CardContent>
++              </Card>
++            </TabsContent>
++          </Tabs>
+         ) : (
+-          <Card>
+-            <CardContent className="py-12 text-center space-y-4">
+-              <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+-              <div>
+-                <h3 className="text-lg font-semibold mb-2">No summary yet</h3>
+-                <p className="text-muted-foreground mb-4">
+-                  Generate an AI-powered summary of your notes
+-                </p>
++          !summaryLoading && (
++            <Card className="border-dashed border-2">
++              <CardContent className="py-20 text-center space-y-6">
++                <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
++                  <Sparkles className="h-8 w-8 text-primary" />
++                </div>
++                <div className="space-y-2">
++                  <h3 className="text-xl font-bold">Generate Study Pack</h3>
++                  <p className="text-muted-foreground">Transform your notes into a structured study package with summaries and deep-dives.</p>
++                </div>
+                 <Button
++                  size="lg"
+                   onClick={() => generateSummaryMutation.mutate()}
+                   disabled={generateSummaryMutation.isPending}
+-                  data-testid="button-generate-summary"
++                  className="px-8"
+                 >
+                   {generateSummaryMutation.isPending ? (
+                     <>
+                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+-                      Generating...
++                      Crafting your guide...
+                     </>
+                   ) : (
+                     <>
+                       <Sparkles className="h-4 w-4 mr-2" />
+-                      Generate Summary
++                      Generate Study Pack
+                     </>
+                   )}
+                 </Button>
+-              </div>
+-            </CardContent>
+-          </Card>
++              </CardContent>
++            </Card>
++          )
+         )}
+       </main>
+     </div>
+diff --git a/main.py b/main.py
+index fa1478b..c6b9f14 100644
+--- a/main.py
++++ b/main.py
+@@ -33,33 +33,51 @@ ocr_instance = None
+ def get_ocr():
+     global ocr_instance
+     if ocr_instance is None:
+-        print("Loading PaddleOCR model (Lazy Load)...")
++        print("Loading PaddleOCR model (Bulletproof CPU Mode)...")
+         try:
+-            # Force PP-OCRv4 to avoid heavy v5 server model downloads that cause timeouts
+-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=True, ocr_version='PP-OCRv4', show_log=False)
+-            print("PaddleOCR loaded successfully with MKLDNN enabled.")
++            # Disable MKLDNN and force CPU for maximum compatibility on Windows
++            # show_log=False reduces terminal noise and potential output stream issues
++            ocr_instance = PaddleOCR(
++                use_angle_cls=False, 
++                lang="en", 
++                use_gpu=False, 
++                enable_mkldnn=False, 
++                show_log=False, 
++                ocr_version='PP-OCRv4'
++            )
++            print("PaddleOCR loaded successfully.")
+         except Exception as e:
+-            print(f"Failed to load with MKLDNN, falling back to safe mode: {e}")
+-            ocr_instance = PaddleOCR(use_angle_cls=False, lang="en", enable_mkldnn=False, ocr_version='PP-OCRv4', show_log=False)
++            print(f"CRITICAL ERROR: PaddleOCR failed to initialize: {e}")
++            ocr_instance = None
+     return ocr_instance
+ 
+ def perform_ocr_on_file(file_path):
+     """Helper to run OCR on a file path directly. 
+     This is more stable than passing numpy arrays on Windows."""
+     try:
+-        # cls=False because we disabled angle classifier in init, but explicit is better
+         ocr = get_ocr()
+-        result = ocr.ocr(file_path, cls=False)
++        if ocr is None:
++            print("ERROR: OCR instance could not be initialized.")
++            return ""
++            
++        print(f"DEBUG: Running PaddleOCR on {file_path}")
++        # result = ocr.ocr(img, ...)
++        result = ocr.ocr(file_path)
++        
+         text = ""
+         if result and result[0]:
+             for line in result[0]:
+-                text += line[1][0] + "\n"
+-        if not text.strip():
+-            print(f"WARNING: OCR returned empty text for {file_path}")
++                if line and len(line) > 1:
++                    text += line[1][0] + "\n"
++        
++        print(f"DEBUG: OCR result length for {file_path}: {len(text)}")
+         return text
+     except Exception as e:
+-        print(f"OCR failed for {file_path}: {e}")
+-        return ""
++        print(f"OCR failed for {file_path}: {str(e)}")
++        # If it's the MKLDNN error specifically, we log a warning for the user
++        if "MKLDNN" in str(e) or "ConvertPirAttribute" in str(e):
++             print("⚠️  Warning: PaddleOCR Windows compatibility issue detected. Falling back to next engine...")
++        return f"[Python OCR failed for this page: {str(e)}]"
+ 
+ def upload_to_cloudinary(file_path):
+     """Uploads a file to Cloudinary and returns the secure URL."""
+@@ -218,44 +236,20 @@ def extract(file: UploadFile = File(...)):
+         text = ""
+ 
+         if name.endswith(".pdf"):
+-            total_pages = 0
+             doc = None
+             try:
++                print(f"DEBUG: Opening PDF from memory stream (size: {len(content)} bytes)")
+                 doc = fitz.open(stream=content, filetype="pdf")
+-                total_pages = len(doc) # Trigger access to check for errors
++                total_pages = len(doc)
++                print(f"DEBUG: PDF opened successfully. Total pages: {total_pages}")
+             except Exception as e:
+-                print(f"WARNING: Memory PDF processing failed ({e}). Falling back to temp file.")
+-                if 'doc' in locals() and doc:
+-                    doc.close()
+-                
+-                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+-                    tmp.write(content)
+-                    temp_pdf_path = tmp.name
+-                
+-                try:
+-                    doc = fitz.open(temp_pdf_path)
+-                    total_pages = len(doc)
+-                except Exception as e_fallback:
+-                    print(f"ERROR: Fallback PyMuPDF processing failed: {e_fallback}. Attempting direct PaddleOCR...")
+-                    # Close doc if partially opened
+-                    if 'doc' in locals() and doc:
+-                        try: doc.close() 
+-                        except: pass
+-                    doc = None # Signal that fitz failed
+-
+-            
+-                # Fallback: PyMuPDF failed entirely. Use PaddleOCR directly.
+-                print("DEBUG: PyMuPDF extraction failed. Attempting fallback...")
+-                
+-                # If fitz failed to open, we can't rasterize it easily.
+-                # Assuming PaddleOCR might not handle PDF paths directly in this env.
+-                # Let's try to just return a clear error or try one last desperate attempt if Paddle supports it.
+-                # Better to return error than verify empty text.
+-                print("ERROR: Corrupted PDF or password protected. Cannot extract.")
+-                text = "[Error: PDF file is corrupted or password protected. Please try another file.]"
++                print(f"ERROR: PyMuPDF could not open PDF from stream: {e}")
++                import traceback
++                print(traceback.format_exc())
++                return JSONResponse(status_code=400, content={"error": f"Invalid or corrupted PDF file: {str(e)}"})
+ 
+-            if doc:
+-                print(f"DEBUG: PDF opened. Total pages: {total_pages}")
++            if total_pages == 0:
++                return { "text": "[The PDF appeared to be empty or could not be read.]" }
+             
+             for page_num, page in enumerate(doc or []):
+                 print(f"DEBUG: Processing Page {page_num + 1}/{total_pages}...")
+diff --git a/package-lock.json b/package-lock.json
+index ce06e82..c5eb9a1 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -11,6 +11,7 @@
+       "dependencies": {
+         "@capacitor/android": "^8.1.0",
+         "@capacitor/core": "^8.1.0",
++        "@google/generative-ai": "^0.24.1",
+         "@hookform/resolvers": "^3.10.0",
+         "@jridgewell/trace-mapping": "^0.3.25",
+         "@neondatabase/serverless": "^0.10.4",
+@@ -64,7 +65,6 @@
+         "memorystore": "^1.6.7",
+         "multer": "^2.0.2",
+         "next-themes": "^0.4.6",
+-        "openai": "^6.9.0",
+         "passport": "^0.7.0",
+         "passport-local": "^1.0.0",
+         "pdf-parse": "^2.4.5",
+@@ -76,8 +76,10 @@
+         "react-dom": "^18.3.1",
+         "react-hook-form": "^7.55.0",
+         "react-icons": "^5.4.0",
++        "react-markdown": "^10.1.0",
+         "react-resizable-panels": "^2.1.7",
+         "recharts": "^2.15.2",
++        "remark-gfm": "^4.0.1",
+         "resend": "^6.9.2",
+         "sharp": "^0.34.5",
+         "tailwind-merge": "^2.6.0",
+@@ -120,6 +122,9 @@
+         "vite": "5.0.10",
+         "vite-plugin-pwa": "^1.2.0"
+       },
++      "engines": {
++        "node": ">=22.0.0"
++      },
+       "optionalDependencies": {
+         "bufferutil": "^4.0.8"
+       }
+@@ -2749,6 +2754,15 @@
+       "integrity": "sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==",
+       "license": "MIT"
+     },
++    "node_modules/@google/generative-ai": {
++      "version": "0.24.1",
++      "resolved": "https://registry.npmjs.org/@google/generative-ai/-/generative-ai-0.24.1.tgz",
++      "integrity": "sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==",
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18.0.0"
++      }
++    },
+     "node_modules/@hookform/resolvers": {
+       "version": "3.10.0",
+       "resolved": "https://registry.npmjs.org/@hookform/resolvers/-/resolvers-3.10.0.tgz",
+@@ -6547,13 +6561,30 @@
+       "integrity": "sha512-Ps3T8E8dZDam6fUyNiMkekK3XUsaUEik+idO9/YjPtfj2qruF8tFBXS7XhtE4iIXBLxhmLjP3SXpLhVf21I9Lw==",
+       "license": "MIT"
+     },
++    "node_modules/@types/debug": {
++      "version": "4.1.13",
++      "resolved": "https://registry.npmjs.org/@types/debug/-/debug-4.1.13.tgz",
++      "integrity": "sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/ms": "*"
++      }
++    },
+     "node_modules/@types/estree": {
+       "version": "1.0.8",
+       "resolved": "https://registry.npmjs.org/@types/estree/-/estree-1.0.8.tgz",
+       "integrity": "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==",
+-      "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/@types/estree-jsx": {
++      "version": "1.0.5",
++      "resolved": "https://registry.npmjs.org/@types/estree-jsx/-/estree-jsx-1.0.5.tgz",
++      "integrity": "sha512-52CcUVNFyfb1A2ALocQw/Dd1BQFNmSdkuC3BkZ6iqhdMfQz7JWOFRuJFloOzjk+6WijU56m9oKXFAXc7o3Towg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/estree": "*"
++      }
++    },
+     "node_modules/@types/express": {
+       "version": "4.17.21",
+       "resolved": "https://registry.npmjs.org/@types/express/-/express-4.17.21.tgz",
+@@ -6598,12 +6629,36 @@
+         "@types/node": "*"
+       }
+     },
++    "node_modules/@types/hast": {
++      "version": "3.0.4",
++      "resolved": "https://registry.npmjs.org/@types/hast/-/hast-3.0.4.tgz",
++      "integrity": "sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "*"
++      }
++    },
+     "node_modules/@types/http-errors": {
+       "version": "2.0.5",
+       "resolved": "https://registry.npmjs.org/@types/http-errors/-/http-errors-2.0.5.tgz",
+       "integrity": "sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==",
+       "license": "MIT"
+     },
++    "node_modules/@types/mdast": {
++      "version": "4.0.4",
++      "resolved": "https://registry.npmjs.org/@types/mdast/-/mdast-4.0.4.tgz",
++      "integrity": "sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "*"
++      }
++    },
++    "node_modules/@types/ms": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz",
++      "integrity": "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==",
++      "license": "MIT"
++    },
+     "node_modules/@types/multer": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/@types/multer/-/multer-2.0.0.tgz",
+@@ -6756,6 +6811,12 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/@types/unist": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/@types/unist/-/unist-3.0.3.tgz",
++      "integrity": "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==",
++      "license": "MIT"
++    },
+     "node_modules/@types/ws": {
+       "version": "8.18.1",
+       "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
+@@ -6766,6 +6827,12 @@
+         "@types/node": "*"
+       }
+     },
++    "node_modules/@ungap/structured-clone": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/@ungap/structured-clone/-/structured-clone-1.3.0.tgz",
++      "integrity": "sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==",
++      "license": "ISC"
++    },
+     "node_modules/@vitejs/plugin-react": {
+       "version": "4.7.0",
+       "resolved": "https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-4.7.0.tgz",
+@@ -7130,6 +7197,16 @@
+         "@babel/core": "^7.4.0 || ^8.0.0-0 <8.0.0"
+       }
+     },
++    "node_modules/bail": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/bail/-/bail-2.0.2.tgz",
++      "integrity": "sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/balanced-match": {
+       "version": "4.0.2",
+       "resolved": "https://registry.npmjs.org/balanced-match/-/balanced-match-4.0.2.tgz",
+@@ -7456,6 +7533,56 @@
+       ],
+       "license": "CC-BY-4.0"
+     },
++    "node_modules/ccount": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/ccount/-/ccount-2.0.1.tgz",
++      "integrity": "sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/character-entities": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/character-entities/-/character-entities-2.0.2.tgz",
++      "integrity": "sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/character-entities-html4": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/character-entities-html4/-/character-entities-html4-2.1.0.tgz",
++      "integrity": "sha512-1v7fgQRj6hnSwFpq1Eu0ynr/CDEw0rXo2B61qXrLNdHZmPKgb7fqS1a2JwF0rISo9q77jDI8VMEHoApn8qDoZA==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/character-entities-legacy": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/character-entities-legacy/-/character-entities-legacy-3.0.0.tgz",
++      "integrity": "sha512-RpPp0asT/6ufRm//AJVwpViZbGM/MkjQFxJccQRHmISF/22NBtsHqAWmL+/pmkPWoIUJdWyeVleTl1wydHATVQ==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/character-reference-invalid": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/character-reference-invalid/-/character-reference-invalid-2.0.1.tgz",
++      "integrity": "sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/cheerio": {
+       "version": "1.2.0",
+       "resolved": "https://registry.npmjs.org/cheerio/-/cheerio-1.2.0.tgz",
+@@ -7630,6 +7757,16 @@
+         "node": ">= 0.8"
+       }
+     },
++    "node_modules/comma-separated-tokens": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/comma-separated-tokens/-/comma-separated-tokens-2.0.3.tgz",
++      "integrity": "sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/commander": {
+       "version": "2.20.3",
+       "resolved": "https://registry.npmjs.org/commander/-/commander-2.20.3.tgz",
+@@ -8103,6 +8240,19 @@
+       "integrity": "sha512-qIMFpTMZmny+MMIitAB6D7iVPEorVw6YQRWkvarTkT4tBeSLLiHzcwj6q0MmYSFCiVpiqPJTJEYIrpcPzVEIvg==",
+       "license": "MIT"
+     },
++    "node_modules/decode-named-character-reference": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/decode-named-character-reference/-/decode-named-character-reference-1.3.0.tgz",
++      "integrity": "sha512-GtpQYB283KrPp6nRw50q3U9/VfOutZOe103qlN7BPP6Ad27xYnOIWv4lPzo8HCAL+mMZofJ9KEy30fq6MfaK6Q==",
++      "license": "MIT",
++      "dependencies": {
++        "character-entities": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/deepmerge": {
+       "version": "4.3.1",
+       "resolved": "https://registry.npmjs.org/deepmerge/-/deepmerge-4.3.1.tgz",
+@@ -8177,6 +8327,15 @@
+         "node": ">= 0.8"
+       }
+     },
++    "node_modules/dequal": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/dequal/-/dequal-2.0.3.tgz",
++      "integrity": "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=6"
++      }
++    },
+     "node_modules/destroy": {
+       "version": "1.2.0",
+       "resolved": "https://registry.npmjs.org/destroy/-/destroy-1.2.0.tgz",
+@@ -8202,6 +8361,19 @@
+       "integrity": "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==",
+       "license": "MIT"
+     },
++    "node_modules/devlop": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/devlop/-/devlop-1.1.0.tgz",
++      "integrity": "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==",
++      "license": "MIT",
++      "dependencies": {
++        "dequal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/didyoumean": {
+       "version": "1.2.2",
+       "resolved": "https://registry.npmjs.org/didyoumean/-/didyoumean-1.2.2.tgz",
+@@ -9234,6 +9406,28 @@
+       "integrity": "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==",
+       "license": "MIT"
+     },
++    "node_modules/escape-string-regexp": {
++      "version": "5.0.0",
++      "resolved": "https://registry.npmjs.org/escape-string-regexp/-/escape-string-regexp-5.0.0.tgz",
++      "integrity": "sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=12"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
++    "node_modules/estree-util-is-identifier-name": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/estree-util-is-identifier-name/-/estree-util-is-identifier-name-3.0.0.tgz",
++      "integrity": "sha512-hFtqIDZTIUZ9BXLb8y4pYGyk6+wekIivNVTcmvk8NoOh+VeRn5y6cEHzbURrWbfp1fIqdVipilzj+lfaadNZmg==",
++      "license": "MIT",
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/estree-walker": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/estree-walker/-/estree-walker-1.0.1.tgz",
+@@ -9374,6 +9568,12 @@
+       "integrity": "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==",
+       "license": "MIT"
+     },
++    "node_modules/extend": {
++      "version": "3.0.2",
++      "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.2.tgz",
++      "integrity": "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==",
++      "license": "MIT"
++    },
+     "node_modules/fast-content-type-parse": {
+       "version": "3.0.0",
+       "resolved": "https://registry.npmjs.org/fast-content-type-parse/-/fast-content-type-parse-3.0.0.tgz",
+@@ -10177,6 +10377,56 @@
+         "node": ">= 0.4"
+       }
+     },
++    "node_modules/hast-util-to-jsx-runtime": {
++      "version": "2.3.6",
++      "resolved": "https://registry.npmjs.org/hast-util-to-jsx-runtime/-/hast-util-to-jsx-runtime-2.3.6.tgz",
++      "integrity": "sha512-zl6s8LwNyo1P9uw+XJGvZtdFF1GdAkOg8ujOw+4Pyb76874fLps4ueHXDhXWdk6YHQ6OgUtinliG7RsYvCbbBg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/estree": "^1.0.0",
++        "@types/hast": "^3.0.0",
++        "@types/unist": "^3.0.0",
++        "comma-separated-tokens": "^2.0.0",
++        "devlop": "^1.0.0",
++        "estree-util-is-identifier-name": "^3.0.0",
++        "hast-util-whitespace": "^3.0.0",
++        "mdast-util-mdx-expression": "^2.0.0",
++        "mdast-util-mdx-jsx": "^3.0.0",
++        "mdast-util-mdxjs-esm": "^2.0.0",
++        "property-information": "^7.0.0",
++        "space-separated-tokens": "^2.0.0",
++        "style-to-js": "^1.0.0",
++        "unist-util-position": "^5.0.0",
++        "vfile-message": "^4.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/hast-util-whitespace": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/hast-util-whitespace/-/hast-util-whitespace-3.0.0.tgz",
++      "integrity": "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/hast": "^3.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/html-url-attributes": {
++      "version": "3.0.1",
++      "resolved": "https://registry.npmjs.org/html-url-attributes/-/html-url-attributes-3.0.1.tgz",
++      "integrity": "sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==",
++      "license": "MIT",
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/htmlparser2": {
+       "version": "10.1.0",
+       "resolved": "https://registry.npmjs.org/htmlparser2/-/htmlparser2-10.1.0.tgz",
+@@ -10278,6 +10528,12 @@
+         "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+       }
+     },
++    "node_modules/inline-style-parser": {
++      "version": "0.2.7",
++      "resolved": "https://registry.npmjs.org/inline-style-parser/-/inline-style-parser-0.2.7.tgz",
++      "integrity": "sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==",
++      "license": "MIT"
++    },
+     "node_modules/input-otp": {
+       "version": "1.4.2",
+       "resolved": "https://registry.npmjs.org/input-otp/-/input-otp-1.4.2.tgz",
+@@ -10321,6 +10577,30 @@
+         "node": ">= 0.10"
+       }
+     },
++    "node_modules/is-alphabetical": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-alphabetical/-/is-alphabetical-2.0.1.tgz",
++      "integrity": "sha512-FWyyY60MeTNyeSRpkM2Iry0G9hpr7/9kD40mD/cGQEuilcZYS4okz8SN2Q6rLCJ8gbCt6fN+rC+6tMGS99LaxQ==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/is-alphanumerical": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-alphanumerical/-/is-alphanumerical-2.0.1.tgz",
++      "integrity": "sha512-hmbYhX/9MUMF5uh7tOXyK/n0ZvWpad5caBA17GsC6vyuCqaWliRG5K1qS9inmUhEMaOBIW7/whAnSwveW/LtZw==",
++      "license": "MIT",
++      "dependencies": {
++        "is-alphabetical": "^2.0.0",
++        "is-decimal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/is-array-buffer": {
+       "version": "3.0.5",
+       "resolved": "https://registry.npmjs.org/is-array-buffer/-/is-array-buffer-3.0.5.tgz",
+@@ -10469,6 +10749,16 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/is-decimal": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-decimal/-/is-decimal-2.0.1.tgz",
++      "integrity": "sha512-AAB9hiomQs5DXWcRB1rqsxGUstbRroFOPPVAomNk/3XHR5JyEZChOyTWe2oayKnsSsr/kcGqF+z6yuH6HHpN0A==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/is-docker": {
+       "version": "2.2.1",
+       "resolved": "https://registry.npmjs.org/is-docker/-/is-docker-2.2.1.tgz",
+@@ -10554,6 +10844,16 @@
+         "node": ">=0.10.0"
+       }
+     },
++    "node_modules/is-hexadecimal": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-hexadecimal/-/is-hexadecimal-2.0.1.tgz",
++      "integrity": "sha512-DgZQp241c8oO6cA1SbTEWiXeoxV42vlcJxgH+B3hi1AiqqKruZR3ZGF8In3fj4+/y/7rHvlOZLZtgJ/4ttYGZg==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/is-map": {
+       "version": "2.0.3",
+       "resolved": "https://registry.npmjs.org/is-map/-/is-map-2.0.3.tgz",
+@@ -10624,6 +10924,18 @@
+         "node": ">=0.10.0"
+       }
+     },
++    "node_modules/is-plain-obj": {
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/is-plain-obj/-/is-plain-obj-4.1.0.tgz",
++      "integrity": "sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=12"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
+     "node_modules/is-regex": {
+       "version": "1.2.1",
+       "resolved": "https://registry.npmjs.org/is-regex/-/is-regex-1.2.1.tgz",
+@@ -11259,6 +11571,16 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/longest-streak": {
++      "version": "3.1.0",
++      "resolved": "https://registry.npmjs.org/longest-streak/-/longest-streak-3.1.0.tgz",
++      "integrity": "sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/loose-envify": {
+       "version": "1.4.0",
+       "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",
+@@ -11300,6 +11622,16 @@
+         "@jridgewell/sourcemap-codec": "^1.5.5"
+       }
+     },
++    "node_modules/markdown-table": {
++      "version": "3.0.4",
++      "resolved": "https://registry.npmjs.org/markdown-table/-/markdown-table-3.0.4.tgz",
++      "integrity": "sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/math-intrinsics": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+@@ -11309,72 +11641,905 @@
+         "node": ">= 0.4"
+       }
+     },
+-    "node_modules/media-typer": {
+-      "version": "0.3.0",
+-      "resolved": "https://registry.npmjs.org/media-typer/-/media-typer-0.3.0.tgz",
+-      "integrity": "sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==",
++    "node_modules/mdast-util-find-and-replace": {
++      "version": "3.0.2",
++      "resolved": "https://registry.npmjs.org/mdast-util-find-and-replace/-/mdast-util-find-and-replace-3.0.2.tgz",
++      "integrity": "sha512-Tmd1Vg/m3Xz43afeNxDIhWRtFZgM2VLyaf4vSTYwudTyeuTneoL3qtWMA5jeLyz/O1vDJmmV4QuScFCA2tBPwg==",
+       "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "escape-string-regexp": "^5.0.0",
++        "unist-util-is": "^6.0.0",
++        "unist-util-visit-parents": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
+       }
+     },
+-    "node_modules/memorystore": {
+-      "version": "1.6.7",
+-      "resolved": "https://registry.npmjs.org/memorystore/-/memorystore-1.6.7.tgz",
+-      "integrity": "sha512-OZnmNY/NDrKohPQ+hxp0muBcBKrzKNtHr55DbqSx9hLsYVNnomSAMRAtI7R64t3gf3ID7tHQA7mG4oL3Hu9hdw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "debug": "^4.3.0",
+-        "lru-cache": "^4.0.3"
++    "node_modules/mdast-util-from-markdown": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/mdast-util-from-markdown/-/mdast-util-from-markdown-2.0.3.tgz",
++      "integrity": "sha512-W4mAWTvSlKvf8L6J+VN9yLSqQ9AOAAvHuoDAmPkz4dHf553m5gVj2ejadHJhoJmcmxEnOv6Pa8XJhpxE93kb8Q==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "@types/unist": "^3.0.0",
++        "decode-named-character-reference": "^1.0.0",
++        "devlop": "^1.0.0",
++        "mdast-util-to-string": "^4.0.0",
++        "micromark": "^4.0.0",
++        "micromark-util-decode-numeric-character-reference": "^2.0.0",
++        "micromark-util-decode-string": "^2.0.0",
++        "micromark-util-normalize-identifier": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0",
++        "unist-util-stringify-position": "^4.0.0"
+       },
+-      "engines": {
+-        "node": ">=0.10"
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
+       }
+     },
+-    "node_modules/memorystore/node_modules/lru-cache": {
+-      "version": "4.1.5",
+-      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-4.1.5.tgz",
+-      "integrity": "sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==",
+-      "license": "ISC",
++    "node_modules/mdast-util-gfm": {
++      "version": "3.1.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm/-/mdast-util-gfm-3.1.0.tgz",
++      "integrity": "sha512-0ulfdQOM3ysHhCJ1p06l0b0VKlhU0wuQs3thxZQagjcjPrlFRqY215uZGHHJan9GEAXd9MbfPjFJz+qMkVR6zQ==",
++      "license": "MIT",
+       "dependencies": {
+-        "pseudomap": "^1.0.2",
+-        "yallist": "^2.1.2"
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-gfm-autolink-literal": "^2.0.0",
++        "mdast-util-gfm-footnote": "^2.0.0",
++        "mdast-util-gfm-strikethrough": "^2.0.0",
++        "mdast-util-gfm-table": "^2.0.0",
++        "mdast-util-gfm-task-list-item": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
+       }
+     },
+-    "node_modules/memorystore/node_modules/yallist": {
+-      "version": "2.1.2",
+-      "resolved": "https://registry.npmjs.org/yallist/-/yallist-2.1.2.tgz",
+-      "integrity": "sha512-ncTzHV7NvsQZkYe1DW7cbDLm0YpzHmZF5r/iyP3ZnQtMiJ+pjzisCiMNI+Sj+xQF5pXhSHxSB3uDbsBTzY/c2A==",
+-      "license": "ISC"
+-    },
+-    "node_modules/merge-descriptors": {
+-      "version": "1.0.3",
+-      "resolved": "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.3.tgz",
+-      "integrity": "sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==",
++    "node_modules/mdast-util-gfm-autolink-literal": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm-autolink-literal/-/mdast-util-gfm-autolink-literal-2.0.1.tgz",
++      "integrity": "sha512-5HVP2MKaP6L+G6YaxPNjuL0BPrq9orG3TsrZ9YXbA3vDw/ACI4MEsnoDpn6ZNm7GnZgtAcONJyPhOP8tNJQavQ==",
+       "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "ccount": "^2.0.0",
++        "devlop": "^1.0.0",
++        "mdast-util-find-and-replace": "^3.0.0",
++        "micromark-util-character": "^2.0.0"
++      },
+       "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
+       }
+     },
+-    "node_modules/merge2": {
+-      "version": "1.4.1",
+-      "resolved": "https://registry.npmjs.org/merge2/-/merge2-1.4.1.tgz",
+-      "integrity": "sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==",
+-      "dev": true,
++    "node_modules/mdast-util-gfm-footnote": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm-footnote/-/mdast-util-gfm-footnote-2.1.0.tgz",
++      "integrity": "sha512-sqpDWlsHn7Ac9GNZQMeUzPQSMzR6Wv0WKRNvQRg0KqHh02fpTz69Qc1QSseNX29bhz1ROIyNyxExfawVKTm1GQ==",
+       "license": "MIT",
+-      "engines": {
+-        "node": ">= 8"
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.1.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0",
++        "micromark-util-normalize-identifier": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
+       }
+     },
+-    "node_modules/methods": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/methods/-/methods-1.1.2.tgz",
++    "node_modules/mdast-util-gfm-strikethrough": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm-strikethrough/-/mdast-util-gfm-strikethrough-2.0.0.tgz",
++      "integrity": "sha512-mKKb915TF+OC5ptj5bJ7WFRPdYtuHv0yTRxK2tJvi+BDqbkiG7h7u/9SI89nRAYcmap2xHQL9D+QG/6wSrTtXg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-gfm-table": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm-table/-/mdast-util-gfm-table-2.0.0.tgz",
++      "integrity": "sha512-78UEvebzz/rJIxLvE7ZtDd/vIQ0RHv+3Mh5DR96p7cS7HsBhYIICDBCu8csTNWNO6tBWfqXPWekRuj2FNOGOZg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.0.0",
++        "markdown-table": "^3.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-gfm-task-list-item": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-gfm-task-list-item/-/mdast-util-gfm-task-list-item-2.0.0.tgz",
++      "integrity": "sha512-IrtvNvjxC1o06taBAVJznEnkiHxLFTzgonUdy8hzFVeDun0uTjxxrRGVaNFqkU1wJR3RBPEfsxmU6jDWPofrTQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-mdx-expression": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/mdast-util-mdx-expression/-/mdast-util-mdx-expression-2.0.1.tgz",
++      "integrity": "sha512-J6f+9hUp+ldTZqKRSg7Vw5V6MqjATc+3E4gf3CFNcuZNWD8XdyI6zQ8GqH7f8169MM6P7hMBRDVGnn7oHB9kXQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/estree-jsx": "^1.0.0",
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-mdx-jsx": {
++      "version": "3.2.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-mdx-jsx/-/mdast-util-mdx-jsx-3.2.0.tgz",
++      "integrity": "sha512-lj/z8v0r6ZtsN/cGNNtemmmfoLAFZnjMbNyLzBafjzikOM+glrjNHPlf6lQDOTccj9n5b0PPihEBbhneMyGs1Q==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/estree-jsx": "^1.0.0",
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "@types/unist": "^3.0.0",
++        "ccount": "^2.0.0",
++        "devlop": "^1.1.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0",
++        "parse-entities": "^4.0.0",
++        "stringify-entities": "^4.0.0",
++        "unist-util-stringify-position": "^4.0.0",
++        "vfile-message": "^4.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-mdxjs-esm": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/mdast-util-mdxjs-esm/-/mdast-util-mdxjs-esm-2.0.1.tgz",
++      "integrity": "sha512-EcmOpxsZ96CvlP03NghtH1EsLtr0n9Tm4lPUJUBccV9RwUOneqSycg19n5HGzCf+10LozMRSObtVr3ee1WoHtg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/estree-jsx": "^1.0.0",
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "mdast-util-to-markdown": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-phrasing": {
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-phrasing/-/mdast-util-phrasing-4.1.0.tgz",
++      "integrity": "sha512-TqICwyvJJpBwvGAMZjj4J2n0X8QWp21b9l0o7eXyVJ25YNWYbJDVIyD1bZXE6WtV6RmKJVYmQAKWa0zWOABz2w==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "unist-util-is": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-to-hast": {
++      "version": "13.2.1",
++      "resolved": "https://registry.npmjs.org/mdast-util-to-hast/-/mdast-util-to-hast-13.2.1.tgz",
++      "integrity": "sha512-cctsq2wp5vTsLIcaymblUriiTcZd0CwWtCbLvrOzYCDZoWyMNV8sZ7krj09FSnsiJi3WVsHLM4k6Dq/yaPyCXA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "@ungap/structured-clone": "^1.0.0",
++        "devlop": "^1.0.0",
++        "micromark-util-sanitize-uri": "^2.0.0",
++        "trim-lines": "^3.0.0",
++        "unist-util-position": "^5.0.0",
++        "unist-util-visit": "^5.0.0",
++        "vfile": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-to-markdown": {
++      "version": "2.1.2",
++      "resolved": "https://registry.npmjs.org/mdast-util-to-markdown/-/mdast-util-to-markdown-2.1.2.tgz",
++      "integrity": "sha512-xj68wMTvGXVOKonmog6LwyJKrYXZPvlwabaryTjLh9LuvovB/KAH+kvi8Gjj+7rJjsFi23nkUxRQv1KqSroMqA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "@types/unist": "^3.0.0",
++        "longest-streak": "^3.0.0",
++        "mdast-util-phrasing": "^4.0.0",
++        "mdast-util-to-string": "^4.0.0",
++        "micromark-util-classify-character": "^2.0.0",
++        "micromark-util-decode-string": "^2.0.0",
++        "unist-util-visit": "^5.0.0",
++        "zwitch": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/mdast-util-to-string": {
++      "version": "4.0.0",
++      "resolved": "https://registry.npmjs.org/mdast-util-to-string/-/mdast-util-to-string-4.0.0.tgz",
++      "integrity": "sha512-0H44vDimn51F0YwvxSJSm0eCDOJTRlmN0R1yBh4HLj9wiV1Dn0QoXGbvFAWj2hSItVTlCmBF1hqKlIyUBVFLPg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/media-typer": {
++      "version": "0.3.0",
++      "resolved": "https://registry.npmjs.org/media-typer/-/media-typer-0.3.0.tgz",
++      "integrity": "sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/memorystore": {
++      "version": "1.6.7",
++      "resolved": "https://registry.npmjs.org/memorystore/-/memorystore-1.6.7.tgz",
++      "integrity": "sha512-OZnmNY/NDrKohPQ+hxp0muBcBKrzKNtHr55DbqSx9hLsYVNnomSAMRAtI7R64t3gf3ID7tHQA7mG4oL3Hu9hdw==",
++      "license": "MIT",
++      "dependencies": {
++        "debug": "^4.3.0",
++        "lru-cache": "^4.0.3"
++      },
++      "engines": {
++        "node": ">=0.10"
++      }
++    },
++    "node_modules/memorystore/node_modules/lru-cache": {
++      "version": "4.1.5",
++      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-4.1.5.tgz",
++      "integrity": "sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==",
++      "license": "ISC",
++      "dependencies": {
++        "pseudomap": "^1.0.2",
++        "yallist": "^2.1.2"
++      }
++    },
++    "node_modules/memorystore/node_modules/yallist": {
++      "version": "2.1.2",
++      "resolved": "https://registry.npmjs.org/yallist/-/yallist-2.1.2.tgz",
++      "integrity": "sha512-ncTzHV7NvsQZkYe1DW7cbDLm0YpzHmZF5r/iyP3ZnQtMiJ+pjzisCiMNI+Sj+xQF5pXhSHxSB3uDbsBTzY/c2A==",
++      "license": "ISC"
++    },
++    "node_modules/merge-descriptors": {
++      "version": "1.0.3",
++      "resolved": "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.3.tgz",
++      "integrity": "sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/sindresorhus"
++      }
++    },
++    "node_modules/merge2": {
++      "version": "1.4.1",
++      "resolved": "https://registry.npmjs.org/merge2/-/merge2-1.4.1.tgz",
++      "integrity": "sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">= 8"
++      }
++    },
++    "node_modules/methods": {
++      "version": "1.1.2",
++      "resolved": "https://registry.npmjs.org/methods/-/methods-1.1.2.tgz",
+       "integrity": "sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==",
+       "license": "MIT",
+-      "engines": {
+-        "node": ">= 0.6"
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/micromark": {
++      "version": "4.0.2",
++      "resolved": "https://registry.npmjs.org/micromark/-/micromark-4.0.2.tgz",
++      "integrity": "sha512-zpe98Q6kvavpCr1NPVSCMebCKfD7CA2NqZ+rykeNhONIJBpc1tFKt9hucLGwha3jNTNI8lHpctWJWoimVF4PfA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "@types/debug": "^4.0.0",
++        "debug": "^4.0.0",
++        "decode-named-character-reference": "^1.0.0",
++        "devlop": "^1.0.0",
++        "micromark-core-commonmark": "^2.0.0",
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-chunked": "^2.0.0",
++        "micromark-util-combine-extensions": "^2.0.0",
++        "micromark-util-decode-numeric-character-reference": "^2.0.0",
++        "micromark-util-encode": "^2.0.0",
++        "micromark-util-normalize-identifier": "^2.0.0",
++        "micromark-util-resolve-all": "^2.0.0",
++        "micromark-util-sanitize-uri": "^2.0.0",
++        "micromark-util-subtokenize": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-core-commonmark": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/micromark-core-commonmark/-/micromark-core-commonmark-2.0.3.tgz",
++      "integrity": "sha512-RDBrHEMSxVFLg6xvnXmb1Ayr2WzLAWjeSATAoxwKYJV94TeNavgoIdA0a9ytzDSVzBy2YKFK+emCPOEibLeCrg==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "decode-named-character-reference": "^1.0.0",
++        "devlop": "^1.0.0",
++        "micromark-factory-destination": "^2.0.0",
++        "micromark-factory-label": "^2.0.0",
++        "micromark-factory-space": "^2.0.0",
++        "micromark-factory-title": "^2.0.0",
++        "micromark-factory-whitespace": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-chunked": "^2.0.0",
++        "micromark-util-classify-character": "^2.0.0",
++        "micromark-util-html-tag-name": "^2.0.0",
++        "micromark-util-normalize-identifier": "^2.0.0",
++        "micromark-util-resolve-all": "^2.0.0",
++        "micromark-util-subtokenize": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-extension-gfm": {
++      "version": "3.0.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm/-/micromark-extension-gfm-3.0.0.tgz",
++      "integrity": "sha512-vsKArQsicm7t0z2GugkCKtZehqUm31oeGBV/KVSorWSy8ZlNAv7ytjFhvaryUiCUJYqs+NoE6AFhpQvBTM6Q4w==",
++      "license": "MIT",
++      "dependencies": {
++        "micromark-extension-gfm-autolink-literal": "^2.0.0",
++        "micromark-extension-gfm-footnote": "^2.0.0",
++        "micromark-extension-gfm-strikethrough": "^2.0.0",
++        "micromark-extension-gfm-table": "^2.0.0",
++        "micromark-extension-gfm-tagfilter": "^2.0.0",
++        "micromark-extension-gfm-task-list-item": "^2.0.0",
++        "micromark-util-combine-extensions": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-autolink-literal": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-autolink-literal/-/micromark-extension-gfm-autolink-literal-2.1.0.tgz",
++      "integrity": "sha512-oOg7knzhicgQ3t4QCjCWgTmfNhvQbDDnJeVu9v81r7NltNCVmhPy1fJRX27pISafdjL+SVc4d3l48Gb6pbRypw==",
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-sanitize-uri": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-footnote": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-footnote/-/micromark-extension-gfm-footnote-2.1.0.tgz",
++      "integrity": "sha512-/yPhxI1ntnDNsiHtzLKYnE3vf9JZ6cAisqVDauhp4CEHxlb4uoOTxOCJ+9s51bIB8U1N1FJ1RXOKTIlD5B/gqw==",
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-core-commonmark": "^2.0.0",
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-normalize-identifier": "^2.0.0",
++        "micromark-util-sanitize-uri": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-strikethrough": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-strikethrough/-/micromark-extension-gfm-strikethrough-2.1.0.tgz",
++      "integrity": "sha512-ADVjpOOkjz1hhkZLlBiYA9cR2Anf8F4HqZUO6e5eDcPQd0Txw5fxLzzxnEkSkfnD0wziSGiv7sYhk/ktvbf1uw==",
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-util-chunked": "^2.0.0",
++        "micromark-util-classify-character": "^2.0.0",
++        "micromark-util-resolve-all": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-table": {
++      "version": "2.1.1",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-table/-/micromark-extension-gfm-table-2.1.1.tgz",
++      "integrity": "sha512-t2OU/dXXioARrC6yWfJ4hqB7rct14e8f7m0cbI5hUmDyyIlwv5vEtooptH8INkbLzOatzKuVbQmAYcbWoyz6Dg==",
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-tagfilter": {
++      "version": "2.0.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-tagfilter/-/micromark-extension-gfm-tagfilter-2.0.0.tgz",
++      "integrity": "sha512-xHlTOmuCSotIA8TW1mDIM6X2O1SiX5P9IuDtqGonFhEK0qgRI4yeC6vMxEV2dgyr2TiD+2PQ10o+cOhdVAcwfg==",
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-extension-gfm-task-list-item": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/micromark-extension-gfm-task-list-item/-/micromark-extension-gfm-task-list-item-2.1.0.tgz",
++      "integrity": "sha512-qIBZhqxqI6fjLDYFTBIa4eivDMnP+OZqsNwmQ3xNLE4Cxwc+zfQEfbs6tzAo2Hjq+bh6q5F+Z8/cksrLFYWQQw==",
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/micromark-factory-destination": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-factory-destination/-/micromark-factory-destination-2.0.1.tgz",
++      "integrity": "sha512-Xe6rDdJlkmbFRExpTOmRj9N3MaWmbAgdpSrBQvCFqhezUn4AHqJHbaEnfbVYYiexVSs//tqOdY/DxhjdCiJnIA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-factory-label": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-factory-label/-/micromark-factory-label-2.0.1.tgz",
++      "integrity": "sha512-VFMekyQExqIW7xIChcXn4ok29YE3rnuyveW3wZQWWqF4Nv9Wk5rgJ99KzPvHjkmPXF93FXIbBp6YdW3t71/7Vg==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-factory-space": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-factory-space/-/micromark-factory-space-2.0.1.tgz",
++      "integrity": "sha512-zRkxjtBxxLd2Sc0d+fbnEunsTj46SWXgXciZmHq0kDYGnck/ZSGj9/wULTV95uoeYiK5hRXP2mJ98Uo4cq/LQg==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-factory-title": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-factory-title/-/micromark-factory-title-2.0.1.tgz",
++      "integrity": "sha512-5bZ+3CjhAd9eChYTHsjy6TGxpOFSKgKKJPJxr293jTbfry2KDoWkhBb6TcPVB4NmzaPhMs1Frm9AZH7OD4Cjzw==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-factory-whitespace": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-factory-whitespace/-/micromark-factory-whitespace-2.0.1.tgz",
++      "integrity": "sha512-Ob0nuZ3PKt/n0hORHyvoD9uZhr+Za8sFoP+OnMcnWK5lngSzALgQYKMr9RJVOWLqQYuyn6ulqGWSXdwf6F80lQ==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-factory-space": "^2.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-character": {
++      "version": "2.1.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-character/-/micromark-util-character-2.1.1.tgz",
++      "integrity": "sha512-wv8tdUTJ3thSFFFJKtpYKOYiGP2+v96Hvk4Tu8KpCAsTMs6yi+nVmGh1syvSCsaxz45J6Jbw+9DD6g97+NV67Q==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-chunked": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-chunked/-/micromark-util-chunked-2.0.1.tgz",
++      "integrity": "sha512-QUNFEOPELfmvv+4xiNg2sRYeS/P84pTW0TCgP5zc9FpXetHY0ab7SxKyAQCNCc1eK0459uoLI1y5oO5Vc1dbhA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-symbol": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-classify-character": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-classify-character/-/micromark-util-classify-character-2.0.1.tgz",
++      "integrity": "sha512-K0kHzM6afW/MbeWYWLjoHQv1sgg2Q9EccHEDzSkxiP/EaagNzCm7T/WMKZ3rjMbvIpvBiZgwR3dKMygtA4mG1Q==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-combine-extensions": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-combine-extensions/-/micromark-util-combine-extensions-2.0.1.tgz",
++      "integrity": "sha512-OnAnH8Ujmy59JcyZw8JSbK9cGpdVY44NKgSM7E9Eh7DiLS2E9RNQf0dONaGDzEG9yjEl5hcqeIsj4hfRkLH/Bg==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-chunked": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-decode-numeric-character-reference": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/micromark-util-decode-numeric-character-reference/-/micromark-util-decode-numeric-character-reference-2.0.2.tgz",
++      "integrity": "sha512-ccUbYk6CwVdkmCQMyr64dXz42EfHGkPQlBj5p7YVGzq8I7CtjXZJrubAYezf7Rp+bjPseiROqe7G6foFd+lEuw==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-symbol": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-decode-string": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-decode-string/-/micromark-util-decode-string-2.0.1.tgz",
++      "integrity": "sha512-nDV/77Fj6eH1ynwscYTOsbK7rR//Uj0bZXBwJZRfaLEJ1iGBR6kIfNmlNqaqJf649EP0F3NWNdeJi03elllNUQ==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "decode-named-character-reference": "^1.0.0",
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-decode-numeric-character-reference": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-encode": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-encode/-/micromark-util-encode-2.0.1.tgz",
++      "integrity": "sha512-c3cVx2y4KqUnwopcO9b/SCdo2O67LwJJ/UyqGfbigahfegL9myoEFoDYZgkT7f36T0bLrM9hZTAaAyH+PCAXjw==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT"
++    },
++    "node_modules/micromark-util-html-tag-name": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-html-tag-name/-/micromark-util-html-tag-name-2.0.1.tgz",
++      "integrity": "sha512-2cNEiYDhCWKI+Gs9T0Tiysk136SnR13hhO8yW6BGNyhOC4qYFnwF1nKfD3HFAIXA5c45RrIG1ub11GiXeYd1xA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT"
++    },
++    "node_modules/micromark-util-normalize-identifier": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-normalize-identifier/-/micromark-util-normalize-identifier-2.0.1.tgz",
++      "integrity": "sha512-sxPqmo70LyARJs0w2UclACPUUEqltCkJ6PhKdMIDuJ3gSf/Q+/GIe3WKl0Ijb/GyH9lOpUkRAO2wp0GVkLvS9Q==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-symbol": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-resolve-all": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-resolve-all/-/micromark-util-resolve-all-2.0.1.tgz",
++      "integrity": "sha512-VdQyxFWFT2/FGJgwQnJYbe1jjQoNTS4RjglmSjTUlpUMa95Htx9NHeYW4rGDJzbjvCsl9eLjMQwGeElsqmzcHg==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-types": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-sanitize-uri": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-sanitize-uri/-/micromark-util-sanitize-uri-2.0.1.tgz",
++      "integrity": "sha512-9N9IomZ/YuGGZZmQec1MbgxtlgougxTodVwDzzEouPKo3qFWvymFHWcnDi2vzV1ff6kas9ucW+o3yzJK9YB1AQ==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "micromark-util-character": "^2.0.0",
++        "micromark-util-encode": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0"
++      }
++    },
++    "node_modules/micromark-util-subtokenize": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/micromark-util-subtokenize/-/micromark-util-subtokenize-2.1.0.tgz",
++      "integrity": "sha512-XQLu552iSctvnEcgXw6+Sx75GflAPNED1qx7eBJ+wydBb2KCbRZe+NwvIEEMM83uml1+2WSXpBAcp9IUCgCYWA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "devlop": "^1.0.0",
++        "micromark-util-chunked": "^2.0.0",
++        "micromark-util-symbol": "^2.0.0",
++        "micromark-util-types": "^2.0.0"
+       }
+     },
++    "node_modules/micromark-util-symbol": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/micromark-util-symbol/-/micromark-util-symbol-2.0.1.tgz",
++      "integrity": "sha512-vs5t8Apaud9N28kgCrRUdEed4UJ+wWNvicHLPxCa9ENlYuAY31M0ETy5y1vA33YoNPDFTghEbnh6efaE8h4x0Q==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT"
++    },
++    "node_modules/micromark-util-types": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/micromark-util-types/-/micromark-util-types-2.0.2.tgz",
++      "integrity": "sha512-Yw0ECSpJoViF1qTU4DC6NwtC4aWGt1EkzaQB8KPPyCRR8z9TWeV0HbEFGTO+ZY1wB22zmxnJqhPyTpOVCpeHTA==",
++      "funding": [
++        {
++          "type": "GitHub Sponsors",
++          "url": "https://github.com/sponsors/unifiedjs"
++        },
++        {
++          "type": "OpenCollective",
++          "url": "https://opencollective.com/unified"
++        }
++      ],
++      "license": "MIT"
++    },
+     "node_modules/micromatch": {
+       "version": "4.0.8",
+       "resolved": "https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz",
+@@ -11804,27 +12969,6 @@
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
+     },
+-    "node_modules/openai": {
+-      "version": "6.17.0",
+-      "resolved": "https://registry.npmjs.org/openai/-/openai-6.17.0.tgz",
+-      "integrity": "sha512-NHRpPEUPzAvFOAFs9+9pC6+HCw/iWsYsKCMPXH5Kw7BpMxqd8g/A07/1o7Gx2TWtCnzevVRyKMRFqyiHyAlqcA==",
+-      "license": "Apache-2.0",
+-      "bin": {
+-        "openai": "bin/cli"
+-      },
+-      "peerDependencies": {
+-        "ws": "^8.18.0",
+-        "zod": "^3.25 || ^4.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "ws": {
+-          "optional": true
+-        },
+-        "zod": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "node_modules/opencollective-postinstall": {
+       "version": "2.0.3",
+       "resolved": "https://registry.npmjs.org/opencollective-postinstall/-/opencollective-postinstall-2.0.3.tgz",
+@@ -11859,6 +13003,31 @@
+       "dev": true,
+       "license": "BlueOak-1.0.0"
+     },
++    "node_modules/parse-entities": {
++      "version": "4.0.2",
++      "resolved": "https://registry.npmjs.org/parse-entities/-/parse-entities-4.0.2.tgz",
++      "integrity": "sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^2.0.0",
++        "character-entities-legacy": "^3.0.0",
++        "character-reference-invalid": "^2.0.0",
++        "decode-named-character-reference": "^1.0.0",
++        "is-alphanumerical": "^2.0.0",
++        "is-decimal": "^2.0.0",
++        "is-hexadecimal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/parse-entities/node_modules/@types/unist": {
++      "version": "2.0.11",
++      "resolved": "https://registry.npmjs.org/@types/unist/-/unist-2.0.11.tgz",
++      "integrity": "sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==",
++      "license": "MIT"
++    },
+     "node_modules/parse5": {
+       "version": "7.3.0",
+       "resolved": "https://registry.npmjs.org/parse5/-/parse5-7.3.0.tgz",
+@@ -12813,6 +13982,16 @@
+       "integrity": "sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==",
+       "license": "MIT"
+     },
++    "node_modules/property-information": {
++      "version": "7.1.0",
++      "resolved": "https://registry.npmjs.org/property-information/-/property-information-7.1.0.tgz",
++      "integrity": "sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/proxy-addr": {
+       "version": "2.0.7",
+       "resolved": "https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.7.tgz",
+@@ -12997,6 +14176,33 @@
+       "integrity": "sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==",
+       "license": "MIT"
+     },
++    "node_modules/react-markdown": {
++      "version": "10.1.0",
++      "resolved": "https://registry.npmjs.org/react-markdown/-/react-markdown-10.1.0.tgz",
++      "integrity": "sha512-qKxVopLT/TyA6BX3Ue5NwabOsAzm0Q7kAPwq6L+wWDwisYs7R8vZ0nRXqq6rkueboxpkjvLGU9fWifiX/ZZFxQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "devlop": "^1.0.0",
++        "hast-util-to-jsx-runtime": "^2.0.0",
++        "html-url-attributes": "^3.0.0",
++        "mdast-util-to-hast": "^13.0.0",
++        "remark-parse": "^11.0.0",
++        "remark-rehype": "^11.0.0",
++        "unified": "^11.0.0",
++        "unist-util-visit": "^5.0.0",
++        "vfile": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      },
++      "peerDependencies": {
++        "@types/react": ">=18",
++        "react": ">=18"
++      }
++    },
+     "node_modules/react-refresh": {
+       "version": "0.17.0",
+       "resolved": "https://registry.npmjs.org/react-refresh/-/react-refresh-0.17.0.tgz",
+@@ -13303,6 +14509,72 @@
+         "regjsparser": "bin/parser"
+       }
+     },
++    "node_modules/remark-gfm": {
++      "version": "4.0.1",
++      "resolved": "https://registry.npmjs.org/remark-gfm/-/remark-gfm-4.0.1.tgz",
++      "integrity": "sha512-1quofZ2RQ9EWdeN34S79+KExV1764+wCUGop5CPL1WGdD0ocPpu91lzPGbwWMECpEpd42kJGQwzRfyov9j4yNg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "mdast-util-gfm": "^3.0.0",
++        "micromark-extension-gfm": "^3.0.0",
++        "remark-parse": "^11.0.0",
++        "remark-stringify": "^11.0.0",
++        "unified": "^11.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/remark-parse": {
++      "version": "11.0.0",
++      "resolved": "https://registry.npmjs.org/remark-parse/-/remark-parse-11.0.0.tgz",
++      "integrity": "sha512-FCxlKLNGknS5ba/1lmpYijMUzX2esxW5xQqjWxw2eHFfS2MSdaHVINFmhjo+qN1WhZhNimq0dZATN9pH0IDrpA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "mdast-util-from-markdown": "^2.0.0",
++        "micromark-util-types": "^2.0.0",
++        "unified": "^11.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/remark-rehype": {
++      "version": "11.1.2",
++      "resolved": "https://registry.npmjs.org/remark-rehype/-/remark-rehype-11.1.2.tgz",
++      "integrity": "sha512-Dh7l57ianaEoIpzbp0PC9UKAdCSVklD8E5Rpw7ETfbTl3FqcOOgq5q2LVDhgGCkaBv7p24JXikPdvhhmHvKMsw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/hast": "^3.0.0",
++        "@types/mdast": "^4.0.0",
++        "mdast-util-to-hast": "^13.0.0",
++        "unified": "^11.0.0",
++        "vfile": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/remark-stringify": {
++      "version": "11.0.0",
++      "resolved": "https://registry.npmjs.org/remark-stringify/-/remark-stringify-11.0.0.tgz",
++      "integrity": "sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/mdast": "^4.0.0",
++        "mdast-util-to-markdown": "^2.0.0",
++        "unified": "^11.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/require-directory": {
+       "version": "2.1.1",
+       "resolved": "https://registry.npmjs.org/require-directory/-/require-directory-2.1.1.tgz",
+@@ -13980,6 +15252,16 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/space-separated-tokens": {
++      "version": "2.0.2",
++      "resolved": "https://registry.npmjs.org/space-separated-tokens/-/space-separated-tokens-2.0.2.tgz",
++      "integrity": "sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/split2": {
+       "version": "4.2.0",
+       "resolved": "https://registry.npmjs.org/split2/-/split2-4.2.0.tgz",
+@@ -14141,6 +15423,20 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/stringify-entities": {
++      "version": "4.0.4",
++      "resolved": "https://registry.npmjs.org/stringify-entities/-/stringify-entities-4.0.4.tgz",
++      "integrity": "sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==",
++      "license": "MIT",
++      "dependencies": {
++        "character-entities-html4": "^2.0.0",
++        "character-entities-legacy": "^3.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/stringify-object": {
+       "version": "3.3.0",
+       "resolved": "https://registry.npmjs.org/stringify-object/-/stringify-object-3.3.0.tgz",
+@@ -14179,6 +15475,24 @@
+         "node": ">=10"
+       }
+     },
++    "node_modules/style-to-js": {
++      "version": "1.1.21",
++      "resolved": "https://registry.npmjs.org/style-to-js/-/style-to-js-1.1.21.tgz",
++      "integrity": "sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==",
++      "license": "MIT",
++      "dependencies": {
++        "style-to-object": "1.0.14"
++      }
++    },
++    "node_modules/style-to-object": {
++      "version": "1.0.14",
++      "resolved": "https://registry.npmjs.org/style-to-object/-/style-to-object-1.0.14.tgz",
++      "integrity": "sha512-LIN7rULI0jBscWQYaSswptyderlarFkjQ+t79nzty8tcIAceVomEVlLzH5VP4Cmsv6MtKhs7qaAiwlcp+Mgaxw==",
++      "license": "MIT",
++      "dependencies": {
++        "inline-style-parser": "0.2.7"
++      }
++    },
+     "node_modules/sucrase": {
+       "version": "3.35.1",
+       "resolved": "https://registry.npmjs.org/sucrase/-/sucrase-3.35.1.tgz",
+@@ -14552,6 +15866,26 @@
+         "tree-kill": "cli.js"
+       }
+     },
++    "node_modules/trim-lines": {
++      "version": "3.0.1",
++      "resolved": "https://registry.npmjs.org/trim-lines/-/trim-lines-3.0.1.tgz",
++      "integrity": "sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/trough": {
++      "version": "2.2.0",
++      "resolved": "https://registry.npmjs.org/trough/-/trough-2.2.0.tgz",
++      "integrity": "sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/ts-interface-checker": {
+       "version": "0.1.13",
+       "resolved": "https://registry.npmjs.org/ts-interface-checker/-/ts-interface-checker-0.1.13.tgz",
+@@ -15292,6 +16626,25 @@
+         "node": ">=4"
+       }
+     },
++    "node_modules/unified": {
++      "version": "11.0.5",
++      "resolved": "https://registry.npmjs.org/unified/-/unified-11.0.5.tgz",
++      "integrity": "sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0",
++        "bail": "^2.0.0",
++        "devlop": "^1.0.0",
++        "extend": "^3.0.0",
++        "is-plain-obj": "^4.0.0",
++        "trough": "^2.0.0",
++        "vfile": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/unique-string": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/unique-string/-/unique-string-2.0.0.tgz",
+@@ -15305,6 +16658,74 @@
+         "node": ">=8"
+       }
+     },
++    "node_modules/unist-util-is": {
++      "version": "6.0.1",
++      "resolved": "https://registry.npmjs.org/unist-util-is/-/unist-util-is-6.0.1.tgz",
++      "integrity": "sha512-LsiILbtBETkDz8I9p1dQ0uyRUWuaQzd/cuEeS1hoRSyW5E5XGmTzlwY1OrNzzakGowI9Dr/I8HVaw4hTtnxy8g==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/unist-util-position": {
++      "version": "5.0.0",
++      "resolved": "https://registry.npmjs.org/unist-util-position/-/unist-util-position-5.0.0.tgz",
++      "integrity": "sha512-fucsC7HjXvkB5R3kTCO7kUjRdrS0BJt3M/FPxmHMBOm8JQi2BsHAHFsy27E0EolP8rp0NzXsJ+jNPyDWvOJZPA==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/unist-util-stringify-position": {
++      "version": "4.0.0",
++      "resolved": "https://registry.npmjs.org/unist-util-stringify-position/-/unist-util-stringify-position-4.0.0.tgz",
++      "integrity": "sha512-0ASV06AAoKCDkS2+xw5RXJywruurpbC4JZSm7nr7MOt1ojAzvyyaO+UxZf18j8FCF6kmzCZKcAgN/yu2gm2XgQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/unist-util-visit": {
++      "version": "5.1.0",
++      "resolved": "https://registry.npmjs.org/unist-util-visit/-/unist-util-visit-5.1.0.tgz",
++      "integrity": "sha512-m+vIdyeCOpdr/QeQCu2EzxX/ohgS8KbnPDgFni4dQsfSCtpz8UqDyY5GjRru8PDKuYn7Fq19j1CQ+nJSsGKOzg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0",
++        "unist-util-is": "^6.0.0",
++        "unist-util-visit-parents": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/unist-util-visit-parents": {
++      "version": "6.0.2",
++      "resolved": "https://registry.npmjs.org/unist-util-visit-parents/-/unist-util-visit-parents-6.0.2.tgz",
++      "integrity": "sha512-goh1s1TBrqSqukSc8wrjwWhL0hiJxgA8m4kFxGlQ+8FYQ3C/m11FcTs4YYem7V664AhHVvgoQLk890Ssdsr2IQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0",
++        "unist-util-is": "^6.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/universal-user-agent": {
+       "version": "7.0.3",
+       "resolved": "https://registry.npmjs.org/universal-user-agent/-/universal-user-agent-7.0.3.tgz",
+@@ -15484,6 +16905,34 @@
+         "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc"
+       }
+     },
++    "node_modules/vfile": {
++      "version": "6.0.3",
++      "resolved": "https://registry.npmjs.org/vfile/-/vfile-6.0.3.tgz",
++      "integrity": "sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0",
++        "vfile-message": "^4.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
++    "node_modules/vfile-message": {
++      "version": "4.0.3",
++      "resolved": "https://registry.npmjs.org/vfile-message/-/vfile-message-4.0.3.tgz",
++      "integrity": "sha512-QTHzsGd1EhbZs4AsQ20JX1rC3cOlt/IWJruk893DfLRr57lcnOeMaWG4K0JrRta4mIJZKth2Au3mM3u03/JWKw==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/unist": "^3.0.0",
++        "unist-util-stringify-position": "^4.0.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/unified"
++      }
++    },
+     "node_modules/victory-vendor": {
+       "version": "36.9.2",
+       "resolved": "https://registry.npmjs.org/victory-vendor/-/victory-vendor-36.9.2.tgz",
+@@ -16651,6 +18100,16 @@
+       "peerDependencies": {
+         "zod": "^3.24.4"
+       }
++    },
++    "node_modules/zwitch": {
++      "version": "2.0.4",
++      "resolved": "https://registry.npmjs.org/zwitch/-/zwitch-2.0.4.tgz",
++      "integrity": "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
+     }
+   }
+ }
+diff --git a/package.json b/package.json
+index 390a7ee..00576cd 100644
+--- a/package.json
++++ b/package.json
+@@ -18,6 +18,7 @@
+   "dependencies": {
+     "@capacitor/android": "^8.1.0",
+     "@capacitor/core": "^8.1.0",
++    "@google/generative-ai": "^0.24.1",
+     "@hookform/resolvers": "^3.10.0",
+     "@jridgewell/trace-mapping": "^0.3.25",
+     "@neondatabase/serverless": "^0.10.4",
+@@ -71,7 +72,6 @@
+     "memorystore": "^1.6.7",
+     "multer": "^2.0.2",
+     "next-themes": "^0.4.6",
+-    "openai": "^6.9.0",
+     "passport": "^0.7.0",
+     "passport-local": "^1.0.0",
+     "pdf-parse": "^2.4.5",
+@@ -83,8 +83,10 @@
+     "react-dom": "^18.3.1",
+     "react-hook-form": "^7.55.0",
+     "react-icons": "^5.4.0",
++    "react-markdown": "^10.1.0",
+     "react-resizable-panels": "^2.1.7",
+     "recharts": "^2.15.2",
++    "remark-gfm": "^4.0.1",
+     "resend": "^6.9.2",
+     "sharp": "^0.34.5",
+     "tailwind-merge": "^2.6.0",
+diff --git a/scripts/dev.js b/scripts/dev.js
+index 7c5f04e..c6eb851 100644
+--- a/scripts/dev.js
++++ b/scripts/dev.js
+@@ -42,14 +42,15 @@ function cleanup() {
+     const killProcess = (pid) => {
+         if (!pid) return;
+         try {
+-            // Use taskkill on Windows to kill process tree (/T) force (/F)
+             if (process.platform === 'win32') {
+-                spawn('taskkill', ['/pid', pid.toString(), '/f', '/t']);
++                // Use /F for force and /T for tree to ensure all children are killed
++                // Redirecting output to NUL to avoid blocking or prompts
++                execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
+             } else {
+-                process.kill(-pid, 'SIGKILL'); // negative pid kills process group on unix
++                process.kill(-pid, 'SIGKILL');
+             }
+         } catch (e) {
+-            // ignore
++            // ignore if process already gone
+         }
+     };
+ 
+diff --git a/server/index.ts b/server/index.ts
+index bdac765..5d5b01d 100644
+--- a/server/index.ts
++++ b/server/index.ts
+@@ -1,4 +1,4 @@
+-// server/index.ts  (or main.ts) - corrected version
++// server/index.ts  (Trigger reload to fix DNS cache)
+ import "dotenv/config";
+ import express, { type Request, Response, NextFunction } from "express";
+ import { registerRoutes } from "./routes";
+@@ -73,6 +73,7 @@ app.use((req, res, next) => {
+   // register routes (your routes.ts should export registerRoutes)
+   console.log("[Node.js] Calling registerRoutes...");
+   const server = await registerRoutes(app);
++  server.timeout = 600000; // 10 minutes timeout for large long-form AI generations
+   console.log("[Node.js] registerRoutes completed.");
+ 
+   // Express error handler
+diff --git a/server/ocrSummarize.ts b/server/ocrSummarize.ts
+index 0cc1a96..6cf2913 100644
+--- a/server/ocrSummarize.ts
++++ b/server/ocrSummarize.ts
+@@ -2,10 +2,13 @@ import Groq from "groq-sdk";
+ import axios from "axios";
+ import FormData from "form-data";
+ import sharp from "sharp";
++import { geminiOCR, geminiChat } from "./gemini";
+ 
+ const OCR_API_KEY = process.env.OCR_API_KEY || "helloworld";
+ const OCR_TIMEOUT_MS = 300000;
+ 
++console.log(`[OCR System] Gemini Key Detected: ${!!process.env.GEMINI_API_KEY}`);
++
+ async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
+   try {
+     // `pdf-parse` is CJS in many setups; dynamic import keeps it compatible here.
+@@ -21,9 +24,8 @@ async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
+   }
+ }
+ 
+-// Load API keys from environment or use defaults
+-const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
+-const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || "";
++// Serper.dev API for web research
++const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
+ 
+ function getGroq() {
+   if (!process.env.GROQ_API_KEY) {
+@@ -34,64 +36,53 @@ function getGroq() {
+   });
+ }
+ 
+-// Google Search function for web research
+-async function googleSearch(query: string): Promise<string[]> {
++async function serperSearch(query: string): Promise<string[]> {
+   try {
+-    if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
+-      console.log("⚠️  Google Search API not configured - install will use Groq-only research");
++    if (!SERPER_API_KEY) {
++      console.log("⚠️  Serper API not configured - research will use Groq-only mode");
+       return [];
+     }
+ 
+     // Validate query - skip if it contains error messages or is too short
+     if (!query || query.length < 3 || query.length > 200) {
+-      console.log(`Skipping Google Search: query too short/long (${query.length} chars)`);
++      console.log(`Skipping search: query too short/long (${query.length} chars)`);
+       return [];
+     }
+ 
+-    // Skip if query looks like an error message
+-    if (query.includes("[") || query.includes("Failed") || query.includes("could not") || query.includes("extract")) {
+-      console.log("Skipping Google Search: query appears to be error message");
+-      return [];
+-    }
+-
+-    // Clean the query - remove special characters that might cause 400 errors
+-    const cleanQuery = query.replace(/[^\w\s]/g, " ").trim().split(/\s+/).slice(0, 8).join(" ");
+-
+-    if (cleanQuery.length < 3) {
+-      console.log("Skipping Google Search: cleaned query too short");
+-      return [];
+-    }
+-
+-    console.log(`🔍 Searching Google for: "${cleanQuery}"`);
+-    const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&num=3`;
+-
+-    const response = await axios.get(url, {
+-      timeout: 5000,
+-      validateStatus: () => true // Don't throw on any status code
+-    });
++    // Clean the query
++    const cleanQuery = query.replace(/[^\w\s]/g, " ").trim();
++
++    console.log(`🔍 Searching via Serper for: "${cleanQuery}"`);
++    
++    const response = await axios.post('https://google.serper.dev/search', 
++      { q: cleanQuery, num: 3 },
++      {
++        headers: {
++          'X-API-KEY': SERPER_API_KEY,
++          'Content-Type': 'application/json'
++        },
++        timeout: 5000,
++        validateStatus: () => true
++      }
++    );
+ 
+     if (response.status !== 200) {
+-      if (response.status === 403) {
+-        console.warn("⚠️  Google Search API 403 (Quota/Permission): Disabling search for this request.");
+-        return [];
+-      }
+-      console.warn(`❌ Google Search API error (${response.status}):`, response.data?.error?.message || response.statusText);
++      console.warn(`❌ Serper API error (${response.status}):`, response.data?.message || response.statusText);
+       return [];
+     }
+ 
+-    const results = response.data?.items || [];
++    const results = response.data?.organic || [];
+     if (results.length > 0) {
+-      console.log(`✅ Found ${results.length} Google Search results`);
++      console.log(`✅ Found ${results.length} Serper results`);
+     }
++    
+     return results.map((item: any) => `${item.title}: ${item.snippet}`).slice(0, 3);
+   } catch (error: any) {
+-    console.warn("❌ Google Search failed:", error.message);
++    console.warn("❌ Serper search failed:", error.message);
+     return [];
+   }
+ }
+ 
+-// OCR.space API call removed (unused)
+-
+ async function callOcrSpaceBuffer(buf: Buffer, filename: string): Promise<string> {
+   try {
+     const form = new FormData();
+@@ -156,35 +147,25 @@ async function callLocalPythonExtract(buf: Buffer, filename: string): Promise<st
+   }
+ }
+ 
+-// Optimize image for OCR (grayscale, resize, contrast)
+ async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
+   try {
+     const img = sharp(buffer);
+     const meta = await img.metadata();
+ 
+-    // Check brightness to see if we should invert (e.g. dark mode screenshots)
+     const small = await img.clone().resize(200).greyscale().raw().toBuffer();
+     let avg = 0;
+     for (let i = 0; i < small.length; i++) avg += small[i];
+     avg = avg / small.length;
+ 
+     const targetWidth = Math.min(2000, Math.max(1000, meta.width || 1200));
+-
+     let pipeline = img.resize({ width: targetWidth, withoutEnlargement: false });
+ 
+-    // If dark background (avg < 100), invert to make it black-on-white for better OCR
+     if (avg < 100) {
+-      console.log("OCR Preprocess: Dark background detected, inverting image.");
+-      pipeline = pipeline
+-        .flatten({ background: "#000000" })
+-        .negate()
+-        .modulate({ brightness: 1.05, saturation: 0.0 }); // Grayscale + brighten
++      pipeline = pipeline.flatten({ background: "#000000" }).negate().modulate({ brightness: 1.05, saturation: 0.0 });
+     } else {
+-      // Light background: just grayscale and slight contrast
+-      pipeline = pipeline.modulate({ saturation: 0.0, brightness: 1.0 }); // Grayscale
++      pipeline = pipeline.modulate({ saturation: 0.0, brightness: 1.0 });
+     }
+ 
+-    // JPEG is much smaller than PNG and reduces OCR.space validation failures on size.
+     return await pipeline.jpeg({ quality: 80 }).toBuffer();
+   } catch (error: any) {
+     console.warn("Image optimization failed, using original:", error.message);
+@@ -192,7 +173,6 @@ async function optimizeImageForOCR(buffer: Buffer): Promise<Buffer> {
+   }
+ }
+ 
+-// Extract text from image (base64 or buffer) -> delegates to Python
+ export async function extractTextFromImage(imageData: string | Buffer, filename: string = "image.png"): Promise<string> {
+   try {
+     let buffer: Buffer;
+@@ -203,27 +183,30 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
+       buffer = imageData;
+     }
+ 
+-    // Preprocess image for better OCR results
+     const optimizedBuffer = await optimizeImageForOCR(buffer);
+ 
+-    const ocrSpaceText = await callOcrSpaceBuffer(optimizedBuffer, filename);
+-    if (
+-      ocrSpaceText.includes("File failed validation") ||
+-      ocrSpaceText.includes("exceeds") ||
+-      ocrSpaceText.includes("timed out") ||
+-      ocrSpaceText.includes("maximum page limit")
+-    ) {
+-      const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
++    try {
++      if (process.env.GEMINI_API_KEY) {
++        const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
++        const result = await geminiOCR(optimizedBuffer, mimeType);
++        if (result && result.length > 50) return result;
++      }
++    } catch (e: any) {
++      console.warn("Gemini OCR failed, falling back:", e.message);
++    }
++
++    const pyText = await callLocalPythonExtract(optimizedBuffer, filename);
++    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
+       return pyText;
+     }
+-    return ocrSpaceText;
++
++    return await callOcrSpaceBuffer(optimizedBuffer, filename);
+   } catch (error: any) {
+     console.error("Image extraction error:", error.message);
+     return "[Failed to process image]";
+   }
+ }
+ 
+-// PDF extraction -> delegates to Python
+ export async function extractTextFromPDF(pdfData: string | Buffer, filename: string = "document.pdf"): Promise<string> {
+   try {
+     let buffer: Buffer;
+@@ -234,37 +217,31 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
+       buffer = pdfData;
+     }
+     const parsedText = await tryExtractTextFromPdfParse(buffer);
+-    if (parsedText) {
+-      console.log(`PDF has embedded text (pdf-parse): ${filename}`);
++    if (parsedText && parsedText.length > 500) {
+       return parsedText;
+     }
+ 
+-    console.log(`Using OCR.space for scanned PDF: ${filename}`);
+-    // OCR.space has file-size limits; large scanned PDFs should use local Python OCR service.
+-    const isLarge = buffer.length > 4 * 1024 * 1024;
+-    if (isLarge) {
+-      console.log(`PDF is large (${Math.round(buffer.length / 1024 / 1024)}MB). Using local Python OCR: ${filename}`);
+-      return await callLocalPythonExtract(buffer, filename);
++    try {
++      if (process.env.GEMINI_API_KEY) {
++        const result = await geminiOCR(buffer, "application/pdf");
++        if (result && result.trim().length > 10) return result;
++      }
++    } catch (e: any) {
++      console.error("[Gemini] PDF OCR failed:", e.message);
+     }
+ 
+-    const ocrSpaceText = await callOcrSpaceBuffer(buffer, filename);
+-    if (
+-      ocrSpaceText.includes("File failed validation") ||
+-      ocrSpaceText.includes("exceeds") ||
+-      ocrSpaceText.includes("timed out") ||
+-      ocrSpaceText.includes("maximum page limit")
+-    ) {
+-      return await callLocalPythonExtract(buffer, filename);
++    const pyText = await callLocalPythonExtract(buffer, filename);
++    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
++      return pyText;
+     }
+-    return ocrSpaceText;
++
++    return await callOcrSpaceBuffer(buffer, filename);
+   } catch (error: any) {
+     console.error("PDF extraction error:", error.message);
+     return `[Error processing PDF: ${error.message}]`;
+   }
+ }
+ 
+-
+-// PPT extraction -> delegates to Python
+ export async function extractTextFromPPT(pptData: string | Buffer, filename: string = "presentation.pptx"): Promise<string> {
+   try {
+     let buffer: Buffer;
+@@ -274,7 +251,6 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
+     } else {
+       buffer = pptData;
+     }
+-    console.log(`Using OCR.space for PPT: ${filename}`);
+     return await callOcrSpaceBuffer(buffer, filename);
+   } catch (error: any) {
+     console.error("PPT extraction error:", error.message);
+@@ -282,38 +258,20 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
+   }
+ }
+ 
+-// Extract text from file (auto-detect PDF or image)
+-export async function extractTextFromFile(
+-  fileData: string | Buffer,
+-  filename: string
+-): Promise<string> {
++export async function extractTextFromFile(fileData: string | Buffer, filename: string): Promise<string> {
+   const name = (filename || "").toLowerCase();
+-
+-  if (name.endsWith(".pdf")) {
+-    return extractTextFromPDF(fileData, filename);
+-  } else if (
+-    name.endsWith(".png") ||
+-    name.endsWith(".jpg") ||
+-    name.endsWith(".jpeg") ||
+-    name.endsWith(".tiff") ||
+-    name.endsWith(".bmp") ||
+-    name.endsWith(".webp")
+-  ) {
+-    return extractTextFromImage(fileData, filename);
+-  } else {
+-    // Attempt PDF extraction first, then image extraction as fallback
+-    const pdfResult = await extractTextFromPDF(fileData, filename);
+-    if (!pdfResult.includes("[⚠️")) {
+-      return pdfResult;
+-    }
+-    return extractTextFromImage(fileData, filename);
+-  }
++  if (name.endsWith(".pdf")) return extractTextFromPDF(fileData, filename);
++  if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".tiff") || name.endsWith(".bmp") || name.endsWith(".webp")) return extractTextFromImage(fileData, filename);
++  
++  const pdfResult = await extractTextFromPDF(fileData, filename);
++  if (!pdfResult.includes("[⚠️")) return pdfResult;
++  return extractTextFromImage(fileData, filename);
+ }
+ 
+-// Generate summary and key points from text using Groq
+ export async function generateSummary(
+   text: string,
+-  language: string = "English"
++  language: string = "English",
++  preferredModel: string = "llama-3.3-70b-versatile"
+ ): Promise<{
+   summary: string;
+   keyPoints: string[];
+@@ -321,207 +279,166 @@ export async function generateSummary(
+   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+ }> {
+   try {
+-    // Truncate text to avoid Groq token limits (max ~50000 chars for Llama 3 70b)
+-    const maxTextLength = 50000;
+-    const truncatedText = text.length > maxTextLength
+-      ? text.substring(0, maxTextLength) + "...[content truncated]"
+-      : text;
+-
+-    console.log(`Generating summary for ${truncatedText.length} characters (original: ${text.length}) in ${language}`);
+-
+-    const groq = getGroq();
+-    const completion = await groq.chat.completions.create({
+-      model: "llama-3.3-70b-versatile",
+-      messages: [
+-        {
+-          role: "system",
+-          content:
+-            "You are an expert exam tutor and study guide creator. Your goal is to create a **COMPREHENSIVE, DETAILED** study guide from the provided lecture notes.\n" +
+-            `**IMPORTANT**: Output the entire study guide in **${language}**. If the input text is in a different language, TRANSLATE it and summarize it in **${language}**.\n` +
+-            "**IMPORTANT**: The user is studying for an exam. Do NOT summarize briefly. Do NOT skip details. EXPLAIN EVERYTHING.\n" +
+-            "Structure your response CLEARLY using **BOLD CAPITALIZED HEADERS** (e.g., **CORE CONCEPTS**, **DETAILED ANALYSIS**) instead of hashtags (#).\n" +
+-            "Do NOT use markdown headers like # or ##. Use **BOLD** for emphasis.\n" +
+-            "For the Key Points section, you MUST assign a weightage (High/Medium/Low) to each point based on its importance/exam probability.\n" +
+-            "**KEY POINTS FORMAT REQUIREMENT**:\n" +
+-            "- Do NOT say 'This point covers...' or 'The slide discusses...'.\n" +
+-            "- DIRECTLY define the concept and explain it in 2-3 detailed sentences.\n" +
+-            "- Format: '- [High Weightage] **Concept Name**: Definition. Detailed explanation of why it matters and how it works.'\n" +
+-            "Avoid excessive newlines between headers and content.\n" +
+-            "**INSTRUCTIONS**:\n" +
+-            "1. **Overview**: Brief intro.\n" +
+-            "2. **Detailed Notes**: Go through the content slide-by-slide or topic-by-topic. Expand on bullet points. Use the speaker notes for context.\n" +
+-            "3. **Key Terminology**: Definitions of important terms.\n" +
+-            "4. **EXAM CONCEPTS & DEFINITIONS**: Do NOT just predict questions. Instead, list key concepts that are likely to be on the exam and provide their **DEFINITIONS** and **EXAMPLES**. Start with 'Here are the key concepts for the exam:'.\n",
+-        },
+-        {
+-          role: "user",
+-          content: `Create a comprehensive, detailed study guide from these notes. Do not leave out any important details:\n\n${truncatedText}`,
+-        },
+-      ],
+-      temperature: 0.5,
+-      max_tokens: 4000,
+-    });
+-
+-    const summaryText = completion.choices[0].message.content || "";
++    const maxTextLength = preferredModel.includes("gemini") ? 200000 : 100000;
++    const truncatedText = text.length > maxTextLength ? text.substring(0, maxTextLength) + "...[truncated]" : text;
++    console.log(`Generating summary using ${preferredModel} for ${truncatedText.length} characters in ${language}`);
++
++    const systemPrompt = 
++      `ACT AS A SENIOR UNIVERSITY PROFESSOR & LEAD EXAMINER. YOUR GOAL IS TO PROVIDE THE HIGHEST ACCURACY, 100% EXHAUSTIVE, AND LEGALLY CORRECT SOLUTIONS.
++      
++      ⚠️ STRICT OPERATIONAL FLOW:
++      Step 1: SILENT REASONING. Locate every numerical value, balance, and problem requirement. Determine the Add/Less or Dr/Cr logic before writing.
++      Step 2: EXHAUSTIVE LESSON. Do not miss any detail. Treat this as a complete classroom session.
++      
++      ⚠️ MANDATORY RESPONSE STRUCTURE (USE EXACTLY THESE HEADERS):
++      ## 1. OVERVIEW
++      (Identify the topic and ALL problems that need solving.)
++      
++      ## 2. LESSON_AND_SOLUTION
++      (This is 90% of the response. MUST BE EXHAUSTIVE.
++      - ⚠️ MULTI-PROBLEM RULE: If there are multiple questions or problems in the text, you MUST solve EVERY SINGLE ONE. Do not skip any.
++      - MATH: Solve each problem with a Table. Use Add (+) / Less (-) logic for Reconciliation/BRS. NEVER skip a figure. Show final totals for every problem.
++      - THEORY: Comprehensive notes, Key Terminology (detailed), and Exam Concepts. Provide deep explanations for all theory.)
++      
++      ## 3. TAKEAWAYS
++      (The absolute must-know final answers or concepts for exams.)
++      
++      ACCOUNTING PROFORMAS:
++      Reconciliation: Start with Book A profit -> Add (+) income/credits only in Book B, over-recovered costs, etc. -> Less (-) expenses/debits only in Book B. -> Final reconciled profit.
++      BRS: Start with Cash Book -> Add/Less reconciling items -> Final Pass Book balance.
++      
++      CRITICAL: Output ONLY these three numbered headers. BE AS VERBOSE AS POSSIBLE. IF NECESSARY, GENERATE A VERY LONG RESPONSE TO ENSURE COMPLETENESS.`;
++
++    const userPrompt = `Professor, solve EVERY problem in this text using tables and provide exhaustive notes for all theory units.\n\n${truncatedText}`;
++    let summaryText = "";
++    let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
++
++    const callGemini = async (model: string) => {
++      const m = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
++      const res = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], m);
++      return { content: res.content, usage: res.usage };
++    };
+ 
+-    // Initialize usage tracking
+-    const totalUsage = {
+-      promptTokens: completion.usage?.prompt_tokens || 0,
+-      completionTokens: completion.usage?.completion_tokens || 0,
+-      totalTokens: completion.usage?.total_tokens || 0,
++    const callGroq = async (model: string) => {
++      const groq = getGroq();
++      const res = await groq.chat.completions.create({
++        model: model as any || "llama-3.3-70b-versatile",
++        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
++        temperature: 0.1,
++        max_tokens: 8192,
++      });
++      return { 
++        content: res.choices[0]?.message?.content || "", 
++        usage: { promptTokens: res.usage?.prompt_tokens || 0, completionTokens: res.usage?.completion_tokens || 0, totalTokens: res.usage?.total_tokens || 0 }
++      };
+     };
+ 
+-    const lines = summaryText.split("\n");
+-    const keyPoints = lines
+-      .filter((line) => /^(\d+\.|[-•*])\s+/.test(line))
+-      .map((line) => line.replace(/^(\d+\.|[-•*])\s+/, "").trim())
+-      .filter((point) => point.length > 0)
+-      .slice(0, 7);
+-
+-    if (keyPoints.length === 0) {
+-      keyPoints.push(summaryText.slice(0, 200));
++    try {
++      if (preferredModel.includes("gemini")) {
++        const res = await callGemini(preferredModel);
++        summaryText = res.content;
++        totalUsage = res.usage;
++      } else {
++        const res = await callGroq(preferredModel);
++        summaryText = res.content;
++        totalUsage = res.usage;
++      }
++    } catch (primaryError: any) {
++      console.warn(`[Summarize] Primary model '${preferredModel}' failed: ${primaryError.message}. Attempting fallback...`);
++      
++      try {
++        if (preferredModel.includes("gemini")) {
++          console.log(`[Summarize] Falling back from Gemini to Llama...`);
++          const res = await callGroq("llama-3.3-70b-versatile");
++          summaryText = res.content;
++          totalUsage = res.usage;
++        } else {
++          console.log(`[Summarize] Falling back from Llama to Gemini...`);
++          const res = await callGemini("gemini-1.5-flash");
++          summaryText = res.content;
++          totalUsage = res.usage;
++        }
++      } catch (fallbackError: any) {
++        console.error(`[Summarize] Fallback model also failed: ${fallbackError.message}`);
++        
++        const isRateLimit = (e: any) => {
++          try {
++            const msg = (typeof e === 'object' ? JSON.stringify(e) : String(e)).toLowerCase();
++            return msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests') || e?.status === 429;
++          } catch {
++            return false;
++          }
++        };
++        
++        if (isRateLimit(primaryError) || isRateLimit(fallbackError)) {
++             throw new Error("You have run out of AI credits. Please upgrade your plan to continue generating.");
++        }
++        throw primaryError; 
++      }
+     }
+ 
+-    // Extract and research main topics from key points
+-    console.log("Extracting topics for web research...");
+-    const topicExplanations: Record<string, string> = {};
++    const lines = summaryText.split("\n");
++    const keyPoints = lines.filter(l => /^(\d+\.|[-•*])\s+/.test(l)).map(l => l.replace(/^(\d+\.|[-•*])\s+/, "").trim()).filter(p => p.length > 0).slice(0, 7);
++    if (keyPoints.length === 0) keyPoints.push(summaryText.slice(0, 200).replace(/#/g, ""));
+ 
+-    // Extract first 3-4 topics from key points for web research
+-    const topicsToResearch = keyPoints.slice(0, 4).map(point => {
+-      const match = point.match(/^([^:]+?)(?:\s*[:—]|$)/);
+-      return match ? match[1].trim() : point.split(" ").slice(0, 3).join(" ");
++    const topicExplanations: Record<string, string> = {};
++    const topics = keyPoints.slice(0, 4).map(p => {
++      const match = p.match(/^([^:]+?)(?:\s*[:—]|$)/);
++      return match ? match[1].trim() : p.split(" ").slice(0, 3).join(" ");
+     });
+ 
+-    // Run Google Search in parallel with timeout to avoid blocking
+-    console.log("Starting parallel web research (with timeout)...");
+-    const googleSearchPromises = topicsToResearch.map(topic =>
++    const searchPromises = topics.map(topic =>
+       Promise.race([
+-        googleSearch(topic).then(results => ({ topic, results })),
+-        new Promise<{ topic: string; results: string[] }>(resolve =>
+-          setTimeout(() => resolve({ topic, results: [] }), 3000) // 3 second timeout per search
+-        )
+-      ]).catch(() => ({ topic, results: [] }))
++        serperSearch(topic).then(results => ({ topic, results })),
++        new Promise(resolve => setTimeout(() => resolve({ topic, results: [] }), 3000))
++      ]) as Promise<{topic: string, results: string[]}>
+     );
+ 
+-    const searchResults = await Promise.all(googleSearchPromises);
+-    const searchResultsMap: Record<string, string[]> = {};
+-    searchResults.forEach(result => {
+-      searchResultsMap[result.topic] = result.results;
+-    });
++    const searchResults = await Promise.all(searchPromises);
++    const searchMap: Record<string, string[]> = {};
++    searchResults.forEach(r => searchMap[r.topic] = r.results);
+ 
+-    // Research each topic using Groq for detailed explanations (in parallel)
+-    const researchPromises = topicsToResearch.map(async (topic) => {
++    const researchPromises = topics.map(async (topic) => {
+       try {
+-        console.log(`Researching topic: "${topic}"`);
+-
+-        // Use cached Google Search results
+-        let googleContext = "";
+-        const results = searchResultsMap[topic] || [];
+-        if (results.length > 0) {
+-          console.log(`✅ Using ${results.length} Google Search results for "${topic}"`);
+-          googleContext = `\n\nWeb Research Results:\n${results.join("\n")}\n`;
+-        }
+-
+-        // Use Groq to synthesize explanation with Google search context
+-        const researchCompletion = await groq.chat.completions.create({
+-          model: "llama-3.3-70b-versatile",
+-          messages: [
+-            {
+-              role: "system",
+-              content: "You are an expert educational research assistant. Provide clear, detailed, accurate explanations (3-4 sentences) of academic topics for students. Use the provided web research context to enhance your explanation with current and authoritative information.",
+-            },
+-            {
+-              role: "user",
+-              content: `Provide a detailed, educational explanation of: "${topic}". Keep it to 3-4 sentences and include relevant information.${googleContext}`,
+-            },
+-          ],
+-          temperature: 0.7,
+-          max_tokens: 200,
+-        });
+-
+-        if (researchCompletion.usage) {
+-          totalUsage.promptTokens += researchCompletion.usage.prompt_tokens || 0;
+-          totalUsage.completionTokens += researchCompletion.usage.completion_tokens || 0;
+-          totalUsage.totalTokens += researchCompletion.usage.total_tokens || 0;
++        const results = searchMap[topic] || [];
++        const context = results.length > 0 ? `\n\nWeb results:\n${results.join("\n")}` : "";
++        const rSys = "Expert educational research assistant. Clear, detailed 3-4 sentence explanations.";
++        const rUsr = `Explain: "${topic}".${context}`;
++
++        if (preferredModel.includes("gemini")) {
++          const m = preferredModel === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
++          const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], m);
++          topicExplanations[topic] = res.content.trim();
++          totalUsage.promptTokens += res.usage.promptTokens;
++          totalUsage.completionTokens += res.usage.completionTokens;
++          totalUsage.totalTokens += res.usage.totalTokens;
++        } else {
++          const groq = getGroq();
++          const res = await groq.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [{ role: "system", content: rSys }, { role: "user", content: rUsr }], temperature: 0.7, max_tokens: 200 });
++          topicExplanations[topic] = (res.choices[0].message.content || "").trim();
++          totalUsage.promptTokens += res.usage?.prompt_tokens || 0;
++          totalUsage.completionTokens += res.usage?.completion_tokens || 0;
++          totalUsage.totalTokens += res.usage?.total_tokens || 0;
+         }
+-
+-        const explanation = researchCompletion.choices[0].message.content || "";
+-        topicExplanations[topic] = explanation.trim();
+-      } catch (error: any) {
+-        console.warn(`Failed to research topic "${topic}":`, error.message);
+-      }
++      } catch (e) { console.warn(`Topic research failed: ${topic}`); }
+     });
+ 
+-    // Wait for all research to complete in parallel
+     await Promise.all(researchPromises);
+-
+-    return {
+-      summary: summaryText,
+-      keyPoints: keyPoints.slice(0, 7),
+-      topicExplanations,
+-      usage: totalUsage,
+-    };
+-  } catch (error: any) {
+-    console.error("Summary generation error:", error);
+-    throw error;
++    return { summary: summaryText, keyPoints, topicExplanations, usage: totalUsage };
++  } catch (e: any) {
++    console.error("Summary error:", e);
++    throw e;
+   }
+ }
+ 
+-// Combined: Extract + Summarize
+-export async function extractAndSummarize(
+-  fileData: string | Buffer,
+-  filename: string
+-): Promise<{
+-  extracted: string;
+-  summary: string;
+-  keyPoints: string[];
+-  topicExplanations?: Record<string, string>;
+-  error?: string;
+-  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+-}> {
++export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "llama-3.3-70b-versatile") {
+   try {
+     const extracted = await extractTextFromFile(fileData, filename);
+-
+-    if (extracted.includes("[⚠️") && extracted.includes("]")) {
+-      return {
+-        extracted,
+-        summary: "",
+-        keyPoints: [],
+-        error: extracted,
+-      };
+-    }
+-
+-    // Validate extracted text length to prevent "vowels" hallucination
+-    const cleanedText = extracted.replace(/\s/g, "");
+-    if (cleanedText.length < 50) {
+-      console.warn(`⚠️  OCR Extracted insufficient text (${cleanedText.length} chars). Aborting summary.`);
+-      console.log(`Preview of extracted text: "${extracted.slice(0, 100)}..."`);
+-
+-      return {
+-        extracted,
+-        summary: "Unable to generate a summary. The document appears to have very little readable text. Please check the image quality or file content.",
+-        keyPoints: [],
+-        topicExplanations: {},
+-        error: "Insufficient text extracted for summarization."
+-      };
+-    }
+-
+-    const { summary, keyPoints, topicExplanations, usage } = await generateSummary(extracted);
+-
+-    return {
+-      extracted,
+-      summary,
+-      keyPoints,
+-      topicExplanations,
+-      usage,
+-    };
+-  } catch (error: any) {
+-    console.error("Extract and summarize error:", error);
+-    return {
+-      extracted: "",
+-      summary: "",
+-      keyPoints: [],
+-      error: `Error: ${error.message}`,
+-    };
++    if (extracted.includes("[⚠️") && extracted.includes("]")) return { extracted, summary: "", keyPoints: [], error: extracted };
++    if (extracted.replace(/\s/g, "").length < 50) return { extracted, summary: "[Insufficient text]", keyPoints: [], error: "Insufficient text." };
++    const res = await generateSummary(extracted, "English", preferredModel);
++    return { extracted, ...res };
++  } catch (e: any) {
++    return { extracted: "", summary: "", keyPoints: [], error: e.message };
+   }
+ }
+diff --git a/server/routes.ts b/server/routes.ts
+index ea9ff01..2a45bc5 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -2,11 +2,12 @@ import type { Express } from "express";
+ import { createServer, type Server } from "http";
+ import { storage } from "./storage";
+ import { eq } from "drizzle-orm";
+-import { insertNoteSchema, paymentRequests } from "@shared/schema";
++import { insertNoteSchema, paymentRequests, insertResearchSchema } from "@shared/schema";
+ import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
+ import ocrPreprocessRouter from "./ocrPreprocess";
+ import multer from "multer";
+ import Groq from "groq-sdk";
++import { geminiChat } from "./gemini";
+ import { setupAuth } from "./auth";
+ import { isAuthenticated, isAdmin, checkUsageLimit, checkSearchLimit } from "./middleware";
+ import { sendEmail } from "./email";
+@@ -277,7 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       const extractedText = await extractTextFromFile(req.file.buffer, filename);
+ 
+       // Generate summary
+-      const { summary, keyPoints, usage } = await generateSummary(extractedText);
++      const { summary, keyPoints, usage } = await generateSummary(extractedText, "English", req.body.preferredModel);
+ 
+       // Increment usage count
+       const userId = (req.user as any).id;
+@@ -290,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         tokensInput: usage?.promptTokens || 0,
+         tokensOutput: usage?.completionTokens || 0,
+         cost: 0,
+-        model: "llama-3.3-70b-versatile",
++        model: req.body.preferredModel || "llama-3.3-70b-versatile",
+         metadata: JSON.stringify({ filename, fileSize: req.file.size }),
+       });
+ 
+@@ -378,8 +379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.json(existingSummary);
+       }
+ 
+-      // Generate summary using Groq (includes topic research)
+-      const { summary: summaryText, keyPoints, topicExplanations } = await generateSummary(note.content, req.body.language);
++      // Generate summary using selected model (includes topic research)
++      const { summary: summaryText, keyPoints, topicExplanations } = await generateSummary(note.content, req.body.language, req.body.preferredModel);
+ 
+       const summary = await storage.createSummary({
+         noteId: note.id,
+@@ -424,37 +425,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.status(400).json({ error: "Question must be at least 3 characters" });
+       }
+ 
+-      const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || "";
+-      const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || "";
+-
+-      if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
+-        return res.status(400).json({ error: "Google Search not configured. Using Groq for research instead." });
+-      }
+-
+-      try {
+-        const axios = require("axios");
+-        const cleanQuery = question.replace(/[^\w\s]/g, " ").trim().split(/\s+/).slice(0, 10).join(" ");
+-        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(cleanQuery)}&key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&num=5`;
+-
+-        const response = await axios.get(url, {
+-          timeout: 5000,
+-          validateStatus: () => true
+-        });
++      const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
+ 
+-        if (response.status === 200 && response.data?.items) {
+-          // Increment search usage
+-          const userId = (req.user as any).id;
+-          await storage.incrementDailySearch(userId);
+-
+-          const results = response.data.items.map((item: any) => ({
+-            title: item.title,
+-            snippet: item.snippet,
+-            link: item.link,
+-          }));
+-          return res.json({ success: true, results });
++      if (!SERPER_API_KEY) {
++        console.log("Serper API not configured. Using Groq for research instead.");
++      } else {
++        try {
++          const axios = require("axios");
++          const cleanQuery = question.replace(/[^\w\s]/g, " ").trim();
++          
++          const response = await axios.post('https://google.serper.dev/search', 
++            { q: cleanQuery, num: 5 },
++            {
++              headers: {
++                'X-API-KEY': SERPER_API_KEY,
++                'Content-Type': 'application/json'
++              },
++              timeout: 5000,
++              validateStatus: () => true
++            }
++          );
++
++          if (response.status === 200 && response.data?.organic) {
++            // Increment search usage
++            const userId = (req.user as any).id;
++            await storage.incrementDailySearch(userId);
++
++            const results = response.data.organic.map((item: any) => ({
++              title: item.title,
++              snippet: item.snippet,
++              link: item.link || "#",
++            }));
++            return res.json({ success: true, results });
++          }
++        } catch (e: any) {
++          console.warn("Serper Search failed, falling back to Groq research:", e.message);
+         }
+-      } catch (e: any) {
+-        console.warn("Google Search failed, falling back to Groq research:", e.message);
+       }
+ 
+       // Fallback: Use Groq to research the question with multiple perspectives
+@@ -543,6 +549,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
+     }
+   });
+ 
++  // Multi-AI Research Endpoint (Now CANA - Context-Aware Notes Assistant)
++  app.post("/api/research", isAuthenticated, checkSearchLimit, async (req, res) => {
++    try {
++      const { query } = insertResearchSchema.parse(req.body);
++      const userId = (req.user as any).id;
++      
++      // Fetch user's notes for context
++      const notes = await storage.getAllNotes(userId);
++      
++      let contextStr = "";
++      if (notes && notes.length > 0) {
++        // Collect notes, truncating content to keep context window safe (approx 15,000 chars total)
++        const combined = notes.map(n => `Title: ${n.title}\nContent: ${n.content.substring(0, 3000)}`).join("\n\n---\n\n");
++        contextStr = `\n\nUSER'S NOTES FOR CONTEXT:\n${combined.substring(0, 15000)}`;
++      }
++
++      let aiResponse = "";
++      let tokensInput = 0;
++      let tokensOutput = 0;
++      let usedModel = "llama-3.3-70b-versatile";
++      
++      const systemMsg = "You are 'CANA' (Context-Aware Notes Assistant), an expert study tool built into VelocityAI. Your goal is to answer the user's research query accurately and concisely. If the user has saved notes that are relevant to their query, use them immediately to provide a highly personalized answer. If the notes are not relevant or if they don't have notes, use your general knowledge." + contextStr;
++
++      try {
++        const groq = getGroq();
++        const completion = await groq.chat.completions.create({
++          model: "llama-3.3-70b-versatile",
++          messages: [
++            { role: "system", content: systemMsg },
++            { role: "user", content: query }
++          ],
++          temperature: 0.5,
++          max_tokens: 1500,
++        });
++        aiResponse = completion.choices[0]?.message?.content || "No response generated.";
++        tokensInput = completion.usage?.prompt_tokens || 0;
++        tokensOutput = completion.usage?.completion_tokens || 0;
++      } catch (err: any) {
++        console.warn("Groq failed for Research, falling back to Gemini:", err.message);
++        const res = await geminiChat([{ role: "system", content: systemMsg }, { role: "user", content: query }], "gemini-1.5-flash");
++        aiResponse = res.content;
++        tokensInput = res.usage.promptTokens;
++        tokensOutput = res.usage.completionTokens;
++        usedModel = "gemini-1.5-flash";
++      }
++
++      // Format as a single result mapped over seamlessly by the frontend
++      const results = [{
++        provider: 'CANA (VelocityAI Assistant)',
++        content: aiResponse
++      }];
++      
++      // Increment search usage
++      await storage.incrementDailySearch(userId);
++      
++      // Log usage
++      storage.logUsage({
++        userId,
++        action: "CANA_RESEARCH",
++        tokensInput,
++        tokensOutput,
++        cost: 0,
++        model: usedModel,
++        metadata: JSON.stringify({ query: query.substring(0, 100), contextNotesFound: notes.length }),
++      });
++      
++      res.json({ success: true, results });
++    } catch (error: any) {
++      console.error("CANA Research error:", error);
++      res.status(500).json({ error: error.message || "Failed to complete research" });
++    }
++  });
++
+   // Generate quiz for a note
+   app.post("/api/notes/:id/quiz", isAuthenticated, async (req, res) => {
+     try {
+@@ -585,40 +664,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       const truncatedContent = note.content.substring(0, 8000);
+ 
+       // Generate quiz using Groq with variety instructions
+-      const groq = getGroq();
+       const quizNumber = previousQuizzes.length + 1;
+       const questionTypes = ["definition/concept", "application/problem-solving", "comparison/analysis", "cause-effect", "example-based"];
+       const currentType = questionTypes[(quizNumber - 1) % questionTypes.length];
++      
++      const sysMsg = "You are a study assistant. Output ONLY valid JSON. Do not include markdown formatting or code blocks. Your response must be parseable JSON starting with {\"questions\": [ and ending with }]}.";
++      const usrMsg = `Create exactly 5 NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`;
+ 
+-      const completion = await groq.chat.completions.create({
+-        model: "llama-3.3-70b-versatile",
+-        messages: [
+-          {
+-            role: "system",
+-            content: "You are a study assistant. Output ONLY valid JSON. Do not include markdown formatting or code blocks. Your response must be parseable JSON starting with { and ending with }."
+-          },
+-          {
+-            role: "user",
+-            content: `Create exactly 5 NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`
+-          }
+-        ],
+-        temperature: 0.7,
+-        max_tokens: 1500,
+-      });
++      let responseText = "{}";
++      let tokensInput = 0;
++      let tokensOutput = 0;
++      let usedModel = "llama-3.3-70b-versatile";
++
++      try {
++        const groq = getGroq();
++        const completion = await groq.chat.completions.create({
++          model: "llama-3.3-70b-versatile",
++          messages: [
++            { role: "system", content: sysMsg },
++            { role: "user", content: usrMsg }
++          ],
++          temperature: 0.7,
++          max_tokens: 1500,
++        });
++        responseText = completion.choices[0].message.content || "{}";
++        tokensInput = completion.usage?.prompt_tokens || 0;
++        tokensOutput = completion.usage?.completion_tokens || 0;
++      } catch (err: any) {
++        console.warn("Groq failed for Quiz, falling back to Gemini:", err.message);
++        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-1.5-flash");
++        responseText = res.content;
++        tokensInput = res.usage.promptTokens;
++        tokensOutput = res.usage.completionTokens;
++        usedModel = "gemini-1.5-flash";
++      }
+ 
+       // Log Usage
+       storage.logUsage({
+         userId: (req.user as any).id,
+         action: "GENERATE_QUIZ",
+-        tokensInput: completion.usage?.prompt_tokens || 0,
+-        tokensOutput: completion.usage?.completion_tokens || 0,
+-        model: "llama-3.3-70b-versatile",
++        tokensInput,
++        tokensOutput,
++        model: usedModel,
+         cost: 0,
+         metadata: JSON.stringify({ noteId: note.id, quizType: currentType }),
+       });
+ 
+-      const responseText = completion.choices[0].message.content || "{}";
+-
+       // Extract JSON from markdown code blocks if present
+       let jsonStr = responseText.trim();
+ 
+@@ -780,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+         return res.status(400).json({ error: "Missing required fields: imageData, title, subject" });
+       }
+ 
+-      console.log("Processing:", isPDF ? "PDF" : "Image");
++      console.log(`[API] Processing ${isPDF ? "PDF" : "Image"}. Size: ${imageData.length} chars (approx ${Math.round(imageData.length * 0.75 / 1024)} KB)`);
+ 
+       let extractedText = "";
+ 
+@@ -810,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+       let topicExplanations: Record<string, string> = {};
+       if (extractedText && !extractedText.includes("[Failed") && !extractedText.includes("[No text")) {
+         try {
+-          const { summary: summaryText, keyPoints, topicExplanations: explanations } = await generateSummary(extractedText, req.body.language);
++          const { summary: summaryText, keyPoints, topicExplanations: explanations } = await generateSummary(extractedText, req.body.language, req.body.preferredModel);
+ 
+           summary = await storage.createSummary({
+             noteId: note.id,
+@@ -844,7 +935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+   });
+ 
+   // Export to GitHub endpoint
+-  app.post("/api/export-to-github", async (req, res) => {
++  app.post("/api/export-to-github", isAuthenticated, async (req, res) => {
+     try {
+       const { repoName, description } = req.body;
+ 
+@@ -1007,7 +1098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
+   });
+ 
+   // Keep this exclusively for local development testing, but maybe remove in prod later
+-  app.post("/api/debug/set-tier", isAuthenticated, async (req, res) => {
++  app.post("/api/debug/set-tier", isAuthenticated, isAdmin, async (req, res) => {
+     try {
+       const { tier } = req.body;
+       if (!['free', 'pro', 'elite'].includes(tier)) {
+diff --git a/shared/schema.ts b/shared/schema.ts
+index 26eb111..223a550 100644
+--- a/shared/schema.ts
++++ b/shared/schema.ts
+@@ -165,3 +165,9 @@ export const paymentRequestsRelations = relations(paymentRequests, ({ one }) =>
+     references: [users.id],
+   }),
+ }));
++
++export const insertResearchSchema = z.object({
++  query: z.string().min(1, "Query is required"),
++});
++export type InsertResearch = z.infer<typeof insertResearchSchema>;
++
+
+=== UNPUSHED COMMITS ===

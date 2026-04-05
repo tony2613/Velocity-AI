@@ -165,3 +165,9 @@ export const paymentRequestsRelations = relations(paymentRequests, ({ one }) => 
     references: [users.id],
   }),
 }));
+
+export const insertResearchSchema = z.object({
+  query: z.string().min(1, "Query is required"),
+});
+export type InsertResearch = z.infer<typeof insertResearchSchema>;
+
