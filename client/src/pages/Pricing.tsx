@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SEO from "@/components/SEO";
 import {
     Dialog,
@@ -18,11 +18,12 @@ import upiQrCode99 from "@/assets/upi-qr99.png.jpeg";
 import upiQrCode249 from "@/assets/upi-qr249.png.jpeg";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Copy } from "lucide-react";
 
-const tiers = [
+const getTiersForRegion = (region: 'IN' | 'EU' | 'US') => [
     {
         name: "Free",
-        price: "₹0",
+        price: region === 'IN' ? "₹0" : region === 'EU' ? "€0" : "$0",
         period: "/month",
         description: "Essential tools for casual students",
         features: [
@@ -38,7 +39,7 @@ const tiers = [
     },
     {
         name: "Velocity Pro",
-        price: "₹99",
+        price: region === 'IN' ? "₹99" : region === 'EU' ? "€10" : "$10",
         period: "/month",
         description: "Perfect for dedicated learners",
         features: [
@@ -55,7 +56,7 @@ const tiers = [
     },
     {
         name: "Velocity Elite",
-        price: "₹249",
+        price: region === 'IN' ? "₹249" : region === 'EU' ? "€25" : "$30",
         period: "/month",
         description: "Ultimate power for heavy research",
         features: [
@@ -77,8 +78,27 @@ export default function Pricing() {
     const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-    const [selectedTier, setSelectedTier] = useState<typeof tiers[0] | null>(null);
+    const [selectedTier, setSelectedTier] = useState<ReturnType<typeof getTiersForRegion>[0] | null>(null);
     const [transactionId, setTransactionId] = useState("");
+    const [region, setRegion] = useState<'IN' | 'EU' | 'US'>('IN');
+
+    // Fetch user region once on mount
+    useEffect(() => {
+        fetch("https://ipapi.co/json/")
+            .then(res => res.json())
+            .then(data => {
+                if (data.country_code === 'IN') {
+                    setRegion('IN');
+                } else if (data.in_eu || ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'].includes(data.country_code)) {
+                    setRegion('EU');
+                } else {
+                    setRegion('US');
+                }
+            })
+            .catch(() => setRegion('IN')); // Default to IN on failure
+    }, []);
+
+    const currentTiers = getTiersForRegion(region);
 
     const paymentMutation = useMutation({
         mutationFn: async (data: { tier: string, transactionId: string, amount: string }) => {
@@ -104,7 +124,7 @@ export default function Pricing() {
         },
     });
 
-    const handleUpgradeClick = (tier: typeof tiers[0]) => {
+    const handleUpgradeClick = (tier: ReturnType<typeof getTiersForRegion>[0]) => {
         if (!user) {
             toast({
                 title: "Login Required",
@@ -142,7 +162,7 @@ export default function Pricing() {
         paymentMutation.mutate({
             tier: selectedTier.value,
             transactionId: transactionId,
-            amount: selectedTier.price.replace('₹', '')
+            amount: selectedTier.price.replace(/[^\d.-]/g, '')
         });
     };
 
@@ -173,7 +193,7 @@ export default function Pricing() {
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                        {tiers.map((tier) => {
+                        {currentTiers.map((tier) => {
                             const isCurrent = user?.subscriptionTier === tier.value;
                             return (
                                 <Card
@@ -244,47 +264,90 @@ export default function Pricing() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col items-center space-y-4 sm:space-y-5 py-2 sm:py-4">
-                        {/* QR Code - large and crisp for scanning */}
-                        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
-                            <img 
-                                src={
-                                    selectedTier?.value === "pro"
-                                        ? upiQrCode99
-                                        : selectedTier?.value === "elite"
-                                        ? upiQrCode249
-                                        : upiQrCode99
-                                } 
-                                alt="UPI QR Code - Scan to Pay" 
-                                className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
-                                style={{ imageRendering: 'crisp-edges' }}
-                            />
-                        </div>
-                        
-                        <div className="text-center w-full space-y-1">
-                            <p className="font-semibold text-base sm:text-lg">Scan & Pay via UPI</p>
-                            <p className="text-muted-foreground text-xs font-mono bg-muted py-1 px-3 rounded inline-block select-all">tonylewiston2613@okaxis</p>
-                            <p className="text-xs text-muted-foreground mt-1">GPay · PhonePe · Paytm · Any UPI App</p>
-                        </div>
+                        {region === 'IN' ? (
+                            <>
+                                {/* QR Code - large and crisp for scanning */}
+                                <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
+                                    <img 
+                                        src={
+                                            selectedTier?.value === "pro"
+                                                ? upiQrCode99
+                                                : selectedTier?.value === "elite"
+                                                ? upiQrCode249
+                                                : upiQrCode99
+                                        } 
+                                        alt="UPI QR Code - Scan to Pay" 
+                                        className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
+                                        style={{ imageRendering: 'crisp-edges' }}
+                                    />
+                                </div>
+                                
+                                <div className="text-center w-full space-y-1">
+                                    <p className="font-semibold text-base sm:text-lg">Scan & Pay via UPI</p>
+                                    <p className="text-muted-foreground text-xs font-mono bg-muted py-1 px-3 rounded inline-block select-all">tonylewiston2613@okaxis</p>
+                                    <p className="text-xs text-muted-foreground mt-1">GPay · PhonePe · Paytm · Any UPI App</p>
+                                </div>
 
-                        {/* Divider */}
-                        <div className="w-full flex items-center gap-3">
-                            <div className="flex-1 h-px bg-border" />
-                            <span className="text-xs text-muted-foreground">After paying, enter your UTR below</span>
-                            <div className="flex-1 h-px bg-border" />
-                        </div>
+                                {/* Divider */}
+                                <div className="w-full flex items-center gap-3">
+                                    <div className="flex-1 h-px bg-border" />
+                                    <span className="text-xs text-muted-foreground">After paying, enter your UTR below</span>
+                                    <div className="flex-1 h-px bg-border" />
+                                </div>
 
-                        <div className="w-full space-y-2">
-                            <Label htmlFor="utr" className="text-sm font-medium">UPI Transaction ID (UTR)</Label>
-                            <Input 
-                                id="utr" 
-                                placeholder="e.g. 412345678901" 
-                                value={transactionId}
-                                onChange={(e) => setTransactionId(e.target.value)}
-                                className="h-12 text-base sm:h-10 sm:text-sm"
-                                inputMode="numeric"
-                            />
-                            <p className="text-xs text-muted-foreground text-center">Find this 12-digit number in your payment app under transaction details.</p>
-                        </div>
+                                <div className="w-full space-y-2">
+                                    <Label htmlFor="utr" className="text-sm font-medium">UPI Transaction ID (UTR)</Label>
+                                    <Input 
+                                        id="utr" 
+                                        placeholder="e.g. 412345678901" 
+                                        value={transactionId}
+                                        onChange={(e) => setTransactionId(e.target.value)}
+                                        className="h-12 text-base sm:h-10 sm:text-sm"
+                                        inputMode="numeric"
+                                    />
+                                    <p className="text-xs text-muted-foreground text-center">Find this 12-digit number in your payment app under transaction details.</p>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="bg-muted p-4 rounded-xl shadow-sm border w-full text-center">
+                                    <p className="font-medium text-sm mb-2">Automated international payments are currently being set up!</p>
+                                    <p className="text-xs text-muted-foreground mb-4">
+                                        For now, to upgrade to <strong>{selectedTier?.name}</strong>, please send exactly <strong>{selectedTier?.price}</strong> manually via PayPal.
+                                    </p>
+                                    
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <p className="text-sm font-mono bg-background py-1.5 px-3 rounded select-all border">tonylewiston2613@gmail.com</p>
+                                        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => {
+                                            navigator.clipboard.writeText("tonylewiston2613@gmail.com");
+                                            toast({ title: "Copied email to clipboard!" });
+                                        }}>
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">Please use the "Friends and Family" option if available.</p>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="w-full flex items-center gap-3">
+                                    <div className="flex-1 h-px bg-border" />
+                                    <span className="text-xs text-muted-foreground">After paying, enter your PayPal Transaction ID</span>
+                                    <div className="flex-1 h-px bg-border" />
+                                </div>
+
+                                <div className="w-full space-y-2">
+                                    <Label htmlFor="utr" className="text-sm font-medium">PayPal Transaction ID</Label>
+                                    <Input 
+                                        id="utr" 
+                                        placeholder="e.g. 9DL8... or invoice number" 
+                                        value={transactionId}
+                                        onChange={(e) => setTransactionId(e.target.value)}
+                                        className="h-12 text-base sm:h-10 sm:text-sm"
+                                    />
+                                    <p className="text-xs text-muted-foreground text-center">We will manually verify and upgrade your account within a few hours.</p>
+                                </div>
+                            </>
+                        )}
                     </div>
                     <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
                         <Button variant="ghost" onClick={() => setPaymentModalOpen(false)} className="h-11 sm:h-9">Cancel</Button>
