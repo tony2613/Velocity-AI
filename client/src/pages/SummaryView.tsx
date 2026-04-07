@@ -66,8 +66,8 @@ export default function SummaryView() {
     if (!content) return "";
     const name = sectionName.toLowerCase();
     
-    // Split by Markdown headers OR numbered headers at start of line
-    const rawSections = content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*|\d+[.)]\s+))/);
+    // Split by specific section keywords ONLY (ignoring simple numbered lists like 1., 2.)
+    const rawSections = content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*)?[\d.]*\s*(?:OVERVIEW|LESSON_AND_SOLUTION|SOLUTION|LESSON|TAKEAWAY|KEY POINT))/i);
     const sections = rawSections.map(s => s.trim()).filter(Boolean);
     
     if (sections.length <= 1) {
@@ -77,10 +77,10 @@ export default function SummaryView() {
     const findSection = (n: string) => {
       return sections.find(s => {
         const header = s.toLowerCase().split(/\r?\n/)[0];
-        if (n === "overview") return /overview|1\./.test(header);
-        if (n === "solution") return /lesson|solution|2\./.test(header);
-        if (n === "takeaways") return /takeaway|key point|3\./.test(header);
-        return header.includes(n.toLowerCase());
+        if (n === "overview") return /overview/.test(header);
+        if (n === "solution") return /lesson|solution/.test(header);
+        if (n === "takeaways") return /takeaway|key point/.test(header);
+        return false;
       });
     };
 
@@ -89,24 +89,18 @@ export default function SummaryView() {
     if (!section && name === "solution") {
       const filtered = sections.filter(s => {
           const header = s.toLowerCase().split(/\r?\n/)[0];
-          return !/overview|1\./.test(header) && !/takeaway|key point|3\./.test(header);
+          return !/overview/.test(header) && !/takeaway|key point/.test(header);
       });
-      
-      if (filtered.length > 0) {
-        section = filtered.join("\n\n");
-      }
+      if (filtered.length > 0) section = filtered.join("\n\n");
     }
     
     if (!section) return name === "solution" ? content : "";
 
-    // Aggressively remove the identified header line
+    // Remove the first line (the header)
     const result = section.replace(/^[^\n]*(\n+|$)/, "").trim();
-    
-    // If the section ONLY contained a header, we shouldn't return empty 
-    // because the UI fallback will show the whole content.
-    // Instead return the section as is if no body found.
     return result || section;
   };
+
 
 
 
@@ -217,7 +211,7 @@ export default function SummaryView() {
                 <CardContent className="p-0 space-y-4">
                   <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {getSection(summary.content, "Overview") || summary.content.split(/\n\s*#{1,6}\s*/)[0]}
+                      {getSection(summary.content, "Overview") || (summary.content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*)?[\d.]*\s*(?:OVERVIEW|LESSON_AND_SOLUTION|SOLUTION|LESSON|TAKEAWAY|KEY POINT))/i)[0])}
                     </ReactMarkdown>
                   </div>
                 </CardContent>
