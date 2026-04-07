@@ -64,38 +64,49 @@ export default function SummaryView() {
 
   const getSection = (content: string, sectionName: string) => {
     if (!content) return "";
-    const sections = content.split(/(?=## \d\. |## )/);
+    const name = sectionName.toLowerCase();
     
-    const findSection = (name: string) => {
+    // Split the content into sections based on Markdown headers 
+    const rawSections = content.split(/(?=(?:^|\n)#{1,3}\s)/);
+    
+    // Filter and trim sections
+    const sections = rawSections.map(s => s.trim()).filter(Boolean);
+    
+    if (sections.length <= 1) {
+       // If only one section, return full content if it is the solution
+       return name === "solution" ? content : "";
+    }
+
+    const findSection = (n: string) => {
       return sections.find(s => {
-        const lowerS = s.toLowerCase();
-        if (name === "overview") return /## \d\. overview|## overview/i.test(lowerS);
-        if (name === "solution") return /## \d\. lesson|## lesson|## solution|## 2\./i.test(lowerS);
-        if (name === "takeaways") return /## \d\. takeaways|## takeaways|## 3\./i.test(lowerS);
-        return lowerS.includes(name.toLowerCase());
+        const header = s.toLowerCase().split(/\r?\n/)[0];
+        if (n === "overview") return /overview|1\./.test(header);
+        if (n === "solution") return /lesson|solution|2\./.test(header);
+        if (n === "takeaways") return /takeaway|key point|3\./.test(header);
+        return header.includes(n.toLowerCase());
       });
     };
 
-    let section = findSection(sectionName);
+    let section = findSection(name);
     
     // Fail-safe for Solution: If not found specifically, try to find the "middle" or "longest" part
-    if (!section && sectionName === "solution") {
-      // Try to find section 2 explicitly
-      section = sections.find(s => /^## 2\./i.test(s.trim()));
-      if (!section) {
-        // Ultimate fallback: if there are multiple sections and we can't find #2, 
-        // return everything except what looks like overview or takeaways
-        const filtered = sections.filter(s => {
-            const ls = s.toLowerCase();
-            return !ls.includes("overview") && !ls.includes("takeaways");
-        });
-        if (filtered.length > 0) return filtered.join("\n\n").replace(/## .*\n/, "").trim();
-        return content; // Last resort
+    if (!section && name === "solution") {
+      const filtered = sections.filter(s => {
+          const header = s.toLowerCase().split(/\r?\n/)[0];
+          return !/overview|1\./.test(header) && !/takeaway|key point|3\./.test(header);
+      });
+      
+      if (filtered.length > 0) {
+        section = filtered.join("\n\n");
+      } else {
+        return content; // Last resort 
       }
     }
     
-    return section ? section.replace(/## .*\n/, "").trim() : "";
+    // If we found a section, remove the header line and trim
+    return section ? section.replace(/^#{1,3}[^\n]*\n+/, "").trim() : "";
   };
+
 
   // Default to lesson tab for exhaustive content
   const defaultTab = useMemo(() => {
