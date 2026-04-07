@@ -119,10 +119,9 @@ export default function SummaryView() {
 
 
 
-  // Default to lesson tab for exhaustive content
-  const defaultTab = useMemo(() => {
-    return "guide";
-  }, []);
+  // Default to the main lesson tab 
+  const defaultTab = "full";
+
 
   if (noteLoading || summaryLoading) {
     return (
@@ -175,9 +174,6 @@ export default function SummaryView() {
                 <TabsTrigger value="snapshot" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
                   <Info className="h-4 w-4" /> Snapshot
                 </TabsTrigger>
-                <TabsTrigger value="guide" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4" /> Full Lesson & Solution
-                </TabsTrigger>
                 <TabsTrigger value="takeaways" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
                   <ListChecks className="h-4 w-4" /> Takeaways
                 </TabsTrigger>
@@ -187,7 +183,7 @@ export default function SummaryView() {
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="full" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Full Review
+                  <FileText className="h-4 w-4" /> Full Lesson
                 </TabsTrigger>
                 <TabsTrigger value="raw" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2 text-muted-foreground">
                   <Sparkles className="h-4 w-4" /> Source
@@ -249,33 +245,7 @@ export default function SummaryView() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="guide" className="mt-0">
-              <Card className="border-none shadow-none bg-transparent">
-                <CardContent className="p-0">
-                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-6 -mx-1 px-1">
-                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
-                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
-                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
-                        h1: ({ children }) => <h1 className="text-2xl font-bold mt-8 mb-4 border-b pb-2">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
-                      }}
-                    >
-                      {getSection(summary.content, "Solution") || summary.content}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+
 
             {summary.topicExplanations && (
               <TabsContent value="research" className="mt-0 space-y-4">
