@@ -65,41 +65,55 @@ export default function SummaryView() {
   const getSection = (content: string, sectionName: string) => {
     if (!content) return "";
     const name = sectionName.toLowerCase();
+    const lowerContent = content.toLowerCase();
     
-    // Split by specific section keywords ONLY (ignoring simple numbered lists like 1., 2.)
-    const rawSections = content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*)?[\d.]*\s*(?:OVERVIEW|LESSON_AND_SOLUTION|SOLUTION|LESSON|TAKEAWAY|KEY POINT))/i);
-    const sections = rawSections.map(s => s.trim()).filter(Boolean);
-    
-    if (sections.length <= 1) {
-       return name === "solution" ? content : "";
-    }
+    // Standardized keywords from the AI prompt
+    const kwOverview = "overview";
+    const kwSolution = "lesson_and_solution";
+    const kwLesson = "lesson"; // alternative
+    const kwTakeaways = "takeaways";
+    const kwKeyPoint = "key point";
 
-    const findSection = (n: string) => {
-      return sections.find(s => {
-        const header = s.toLowerCase().split(/\r?\n/)[0];
-        if (n === "overview") return /overview/.test(header);
-        if (n === "solution") return /lesson|solution/.test(header);
-        if (n === "takeaways") return /takeaway|key point/.test(header);
-        return false;
-      });
+    // Find indices
+    const idxOverview = lowerContent.indexOf(kwOverview);
+    const idxSolution = lowerContent.indexOf(kwSolution) !== -1 
+        ? lowerContent.indexOf(kwSolution) 
+        : lowerContent.indexOf(kwLesson);
+    const idxTakeaways = lowerContent.indexOf(kwTakeaways) !== -1 
+        ? lowerContent.indexOf(kwTakeaways) 
+        : lowerContent.indexOf(kwKeyPoint);
+
+    const getStartOfBody = (idx: number) => {
+      if (idx === -1) return -1;
+      const nextNewline = content.indexOf("\n", idx);
+      return nextNewline === -1 ? idx + 30 : nextNewline + 1;
     };
 
-    let section = findSection(name);
-    
-    if (!section && name === "solution") {
-      const filtered = sections.filter(s => {
-          const header = s.toLowerCase().split(/\r?\n/)[0];
-          return !/overview/.test(header) && !/takeaway|key point/.test(header);
-      });
-      if (filtered.length > 0) section = filtered.join("\n\n");
+    if (name === "overview") {
+      if (idxOverview === -1) return "";
+      const start = getStartOfBody(idxOverview);
+      const nextIdx = idxSolution !== -1 ? idxSolution : (idxTakeaways !== -1 ? idxTakeaways : content.length);
+      const piece = content.substring(start, nextIdx).trim();
+      return piece.replace(/[ \t]*#{1,6}\s*[\d.]*\s*$/, "").trim();
     }
     
-    if (!section) return name === "solution" ? content : "";
-
-    // Remove the first line (the header)
-    const result = section.replace(/^[^\n]*(\n+|$)/, "").trim();
-    return result || section;
+    if (name === "solution") {
+      if (idxSolution === -1) return "";
+      const start = getStartOfBody(idxSolution);
+      const nextIdx = idxTakeaways !== -1 ? idxTakeaways : content.length;
+      const piece = content.substring(start, nextIdx).trim();
+      return piece.replace(/[ \t]*#{1,6}\s*[\d.]*\s*$/, "").trim();
+    }
+    
+    if (name === "takeaways") {
+      if (idxTakeaways === -1) return "";
+      const start = getStartOfBody(idxTakeaways);
+      return content.substring(start).trim();
+    }
+    
+    return "";
   };
+
 
 
 
@@ -211,7 +225,7 @@ export default function SummaryView() {
                 <CardContent className="p-0 space-y-4">
                   <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {getSection(summary.content, "Overview") || (summary.content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*)?[\d.]*\s*(?:OVERVIEW|LESSON_AND_SOLUTION|SOLUTION|LESSON|TAKEAWAY|KEY POINT))/i)[0])}
+                      {getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0]}
                     </ReactMarkdown>
                   </div>
                 </CardContent>
