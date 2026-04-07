@@ -66,9 +66,8 @@ export default function SummaryView() {
     if (!content) return "";
     const name = sectionName.toLowerCase();
     
-    // Lenient split: handles leading spaces, various hash counts (1-6), and trailing spaces
-    const rawSections = content.split(/(?=(?:^|\n)\s*#{1,6}\s*)/);
-    
+    // Split by Markdown headers OR numbered headers at start of line
+    const rawSections = content.split(/(?=(?:^|\n)\s*(?:#{1,6}\s*|\d+[.)]\s+))/);
     const sections = rawSections.map(s => s.trim()).filter(Boolean);
     
     if (sections.length <= 1) {
@@ -95,14 +94,20 @@ export default function SummaryView() {
       
       if (filtered.length > 0) {
         section = filtered.join("\n\n");
-      } else {
-        return content; 
       }
     }
     
-    // Robustly remove the header line (up to first newline)
-    return section ? section.replace(/^\s*#{1,6}\s*[^\n]*\n+/, "").trim() : "";
+    if (!section) return name === "solution" ? content : "";
+
+    // Aggressively remove the identified header line
+    const result = section.replace(/^[^\n]*(\n+|$)/, "").trim();
+    
+    // If the section ONLY contained a header, we shouldn't return empty 
+    // because the UI fallback will show the whole content.
+    // Instead return the section as is if no body found.
+    return result || section;
   };
+
 
 
 
