@@ -66,14 +66,12 @@ export default function SummaryView() {
     if (!content) return "";
     const name = sectionName.toLowerCase();
     
-    // Split the content into sections based on Markdown headers 
-    const rawSections = content.split(/(?=(?:^|\n)#{1,3}\s)/);
+    // Lenient split: handles leading spaces, various hash counts (1-6), and trailing spaces
+    const rawSections = content.split(/(?=(?:^|\n)\s*#{1,6}\s*)/);
     
-    // Filter and trim sections
     const sections = rawSections.map(s => s.trim()).filter(Boolean);
     
     if (sections.length <= 1) {
-       // If only one section, return full content if it is the solution
        return name === "solution" ? content : "";
     }
 
@@ -89,7 +87,6 @@ export default function SummaryView() {
 
     let section = findSection(name);
     
-    // Fail-safe for Solution: If not found specifically, try to find the "middle" or "longest" part
     if (!section && name === "solution") {
       const filtered = sections.filter(s => {
           const header = s.toLowerCase().split(/\r?\n/)[0];
@@ -99,13 +96,14 @@ export default function SummaryView() {
       if (filtered.length > 0) {
         section = filtered.join("\n\n");
       } else {
-        return content; // Last resort 
+        return content; 
       }
     }
     
-    // If we found a section, remove the header line and trim
-    return section ? section.replace(/^#{1,3}[^\n]*\n+/, "").trim() : "";
+    // Robustly remove the header line (up to first newline)
+    return section ? section.replace(/^\s*#{1,6}\s*[^\n]*\n+/, "").trim() : "";
   };
+
 
 
   // Default to lesson tab for exhaustive content
@@ -214,7 +212,7 @@ export default function SummaryView() {
                 <CardContent className="p-0 space-y-4">
                   <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {getSection(summary.content, "Overview") || summary.content.split("##")[0]}
+                      {getSection(summary.content, "Overview") || summary.content.split(/\n\s*#{1,6}\s*/)[0]}
                     </ReactMarkdown>
                   </div>
                 </CardContent>

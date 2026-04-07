@@ -18,7 +18,6 @@ import upiQrCode99 from "@/assets/upi-qr99.png.jpeg";
 import upiQrCode249 from "@/assets/upi-qr249.png.jpeg";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy } from "lucide-react";
 
 const getTiersForRegion = (region: 'IN' | 'EU' | 'US') => [
     {
@@ -310,22 +309,44 @@ export default function Pricing() {
                             </>
                         ) : (
                             <>
-                                <div className="bg-muted p-4 rounded-xl shadow-sm border w-full text-center">
-                                    <p className="font-medium text-sm mb-2">Automated international payments are currently being set up!</p>
-                                    <p className="text-xs text-muted-foreground mb-4">
-                                        For now, to upgrade to <strong>{selectedTier?.name}</strong>, please send exactly <strong>{selectedTier?.price}</strong> manually via PayPal.
-                                    </p>
-                                    
-                                    <div className="flex items-center justify-center gap-2 mb-2">
-                                        <p className="text-sm font-mono bg-background py-1.5 px-3 rounded select-all border">tonylewiston2613@gmail.com</p>
-                                        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => {
-                                            navigator.clipboard.writeText("tonylewiston2613@gmail.com");
-                                            toast({ title: "Copied email to clipboard!" });
-                                        }}>
-                                            <Copy className="h-4 w-4" />
-                                        </Button>
+                                <div className="bg-muted/30 p-6 rounded-2xl border border-primary/20 w-full">
+                                    <div className="flex justify-center gap-4 mb-4">
+                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-6" />
+                                        </div>
+                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4" />
+                                        </div>
+                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-6" />
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground">Please use the "Friends and Family" option if available.</p>
+                                    
+                                    <div className="text-center space-y-3">
+                                        <p className="font-bold text-lg">International Checkout</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            Pay via **Credit Card** or **PayPal** to upgrade to {selectedTier?.name}.
+                                        </p>
+                                        
+                                        <Button 
+                                            size="lg" 
+                                            className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold h-12 rounded-xl"
+                                            onClick={() => {
+                                                const amount = selectedTier?.price.replace(/[^\d.-]/g, '');
+                                                const currency = region === 'EU' ? 'EUR' : 'USD';
+                                                window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=tonylewiston2613@gmail.com&item_name=VelocityAI%20${selectedTier?.name}&amount=${amount}&currency_code=${currency}`, '_blank');
+                                            }}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                Proceed to PayPal
+                                            </span>
+                                        </Button>
+                                        
+                                        <div className="flex items-center justify-center gap-2 pt-2">
+                                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Verification Email</span>
+                                            <p className="text-xs font-mono bg-background py-1 px-3 rounded border">tonylewiston2613@gmail.com</p>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Divider */}
