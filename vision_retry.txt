@@ -1,0 +1,75 @@
+﻿[dotenv@17.2.3] injecting env (12) from .env -- tip: ΓÜÖ∩╕Å  load multiple .env files with { path: ['.env.local', '.env'] }
+Using API Key: AIzaS...
+Testing with image: test_ocr_image.png
+node : Γ¥î Request 
+failed:
+At line:1 char:1
++ node 
+scripts/test-vision.js 
+2>&1 | Out-File 
+-FilePath 
+vision_retry.tx ...
++ ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+(Γ    ¥î Request 
+failed::St    ring) [], 
+RemoteExcep    tion
+    + 
+FullyQualifiedError    
+Id : NativeCommandErr   
+ or
+ 
+Status: 403
+Data: {
+  "error": {
+    "code": 403,
+    "message": 
+"Requests to this API 
+vision.googleapis.com 
+method google.cloud.visi
+on.v1.ImageAnnotator.Bat
+chAnnotateImages are 
+blocked.",
+    "status": 
+"PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.g
+oogleapis.com/google.rpc
+.ErrorInfo",
+        "reason": "API_K
+EY_SERVICE_BLOCKED",
+        "domain": 
+"googleapis.com",
+        "metadata": {
+          "service": 
+"vision.googleapis.com",
+          "consumer": 
+"projects/755232756804",
+          "apiName": 
+"vision.googleapis.com",
+          "methodName": 
+"google.cloud.vision.v1.
+ImageAnnotator.BatchAnno
+tateImages"
+        }
+      },
+      {
+        "@type": "type.g
+oogleapis.com/google.rpc
+.LocalizedMessage",
+        "locale": 
+"en-US",
+        "message": 
+"Requests to this API 
+vision.googleapis.com 
+method google.cloud.visi
+on.v1.ImageAnnotator.Bat
+chAnnotateImages are 
+blocked."
+      }
+    ]
+  }
+}

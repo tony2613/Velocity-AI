@@ -4,12 +4,19 @@ import fitz
 import os
 import tempfile
 import uuid
+import requests
+import base64
 from paddleocr import PaddleOCR
 import signal
 import sys
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+from dotenv import load_dotenv
+import concurrent.futures
+
+# Load environment variables
+load_dotenv()
 
 # Windows Ctrl+C handling
 def signal_handler(sig, frame):
@@ -51,17 +58,89 @@ def get_ocr():
             ocr_instance = None
     return ocr_instance
 
+def google_vision_ocr(file_path):
+    """Performs OCR using Google Cloud Vision API REST endpoint."""
+    api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
+    if not api_key:
+        print("ERROR: GOOGLE_SEARCH_API_KEY not found for Vision OCR.")
+        return ""
+        
+    try:
+        print(f"DEBUG: Running Google Vision OCR on {file_path}")
+        
+        # 1. Image Check
+        if not os.path.exists(file_path):
+            print(f"CRITICAL: file_path {file_path} does not exist!")
+            return ""
+            
+        file_size = os.path.getsize(file_path)
+        print(f"DEBUG: Image file exists. Size: {file_size} bytes")
+        if file_size == 0:
+            print("CRITICAL: Image file is empty (0 bytes)! MuPDF rendering likely failed.")
+            return ""
+
+        with open(file_path, "rb") as image_file:
+            content = base64.b64encode(image_file.read()).decode("utf-8")
+
+        url = f"https://vision.googleapis.com/v1/images:annotate?key={api_key}"
+        payload = {
+            "requests": [
+                {
+                    "image": {"content": content},
+                    "features": [{"type": "DOCUMENT_TEXT_DETECTION"}]
+                }
+            ]
+        }
+        
+        print(f"DEBUG: Sending POST to Vision API... (Project: {os.getenv('GOOGLE_SEARCH_API_KEY', '')[:10]}...)")
+        response = requests.post(url, json=payload, timeout=60)
+        
+        print(f"DEBUG: Vision API Header response: {response.status_code}")
+        if response.status_code != 200:
+            print(f"ERROR: Google Vision API returned HTTP {response.status_code}")
+            print(f"Response Body: {response.text}")
+            return ""
+
+        data = response.json()
+        responses = data.get("responses", [])
+        if not responses:
+            print("ERROR: Empty 'responses' array from Google Vision.")
+            return ""
+            
+        res0 = responses[0]
+        if "error" in res0:
+            err_msg = res0['error'].get('message', 'Unknown error')
+            print(f"ERROR: Google Vision Result Error: {err_msg}")
+            # Log the full error for debugging
+            import json
+            print(f"Full Error Detail: {json.dumps(res0['error'])}")
+            return ""
+            
+        text = res0.get("fullTextAnnotation", {}).get("text", "")
+        print(f"DEBUG: Google Vision OCR result success! Length: {len(text)}")
+        return text
+    except Exception as e:
+        print(f"Google Vision OCR exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return ""
+
 def perform_ocr_on_file(file_path):
     """Helper to run OCR on a file path directly. 
-    This is more stable than passing numpy arrays on Windows."""
+    Uses Google Vision as primary, PaddleOCR as fallback."""
     try:
+        # 1. Try Google Vision (High Accuracy)
+        text = google_vision_ocr(file_path)
+        if text and len(text.strip()) > 5:
+            return text
+            
+        # 2. Fallback to PaddleOCR (Local)
+        print("Falling back to PaddleOCR...")
         ocr = get_ocr()
         if ocr is None:
-            print("ERROR: OCR instance could not be initialized.")
             return ""
             
         print(f"DEBUG: Running PaddleOCR on {file_path}")
-        # result = ocr.ocr(img, ...)
         result = ocr.ocr(file_path)
         
         text = ""
@@ -203,14 +282,8 @@ def process_pptx(content):
                         
                         # Also run OCR for accessibility/context
                         try:
-                            # We use the same method as the main extraction flow
-                            ocr = get_ocr()
-                            result = ocr.ocr(image_path)
-                            
-                            img_text = ""
-                            if result and result[0]:
-                                for line in result[0]:
-                                    img_text += line[1][0] + " "
+                            # CENTRALIZED: Using perform_ocr_on_file instead of direct PaddleOCR
+                            img_text = perform_ocr_on_file(image_path)
                             
                             if img_text.strip():
                                 text += f"\n[Image Text/OCR]: {img_text.strip()}\n"
@@ -228,177 +301,95 @@ def process_pptx(content):
 
 @app.post("/extract")
 def extract(file: UploadFile = File(...)):
-    temp_filename = None
     temp_pdf_path = None
     try:
-        content = file.file.read() # Read synchronously
+        content = file.file.read() 
         name = (file.filename or "").lower()
-        text = ""
-
+        
         if name.endswith(".pdf"):
             doc = None
             try:
-                print(f"DEBUG: Opening PDF from memory stream (size: {len(content)} bytes)")
+                # Try opening from memory first (Fastest)
                 doc = fitz.open(stream=content, filetype="pdf")
                 total_pages = len(doc)
-                print(f"DEBUG: PDF opened successfully. Total pages: {total_pages}")
+                print(f"DEBUG: PDF opened from memory. Total pages: {total_pages}")
             except Exception as e:
-                print(f"ERROR: PyMuPDF could not open PDF from stream: {e}")
-                import traceback
-                print(traceback.format_exc())
-                return JSONResponse(status_code=400, content={"error": f"Invalid or corrupted PDF file: {str(e)}"})
+                # Disk fallback for Windows stability (Fixes Errno 22)
+                print(f"DEBUG: Memory load failed, using disk fallback...")
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_pdf:
+                    tmp_pdf.write(content)
+                    temp_pdf_path = tmp_pdf.name
+                doc = fitz.open(temp_pdf_path)
+                total_pages = len(doc)
 
             if total_pages == 0:
-                return { "text": "[The PDF appeared to be empty or could not be read.]" }
-            
-            for page_num, page in enumerate(doc or []):
-                print(f"DEBUG: Processing Page {page_num + 1}/{total_pages}...")
-                
-                # TIMEOUT / SAFETY: Skip if we've spent too long on a single request (e.g., > 3 minutes)
-                # (For now, just rely on per-page speedups)
+                if doc: doc.close()
+                return { "text": "[Empty PDF]" }
 
-                # 1. Try to extract text directly (Fastest)
-                t = page.get_text().strip()
-                
-                # Check if we have substantial text
-                if len(t) > 50:
-                    print(f"DEBUG: Page {page_num + 1}: Text detected ({len(t)} chars). Using extracted text.")
-                    text += f"\n\n{t}\n"
+            # --- PARALLEL PROCESSING HELPER ---
+            def process_single_page(page_num):
+                # We open a NEW handle for each thread to avoid 'fitz' multithreading issues
+                # though usually it's fine for simple page reads.
+                handle = None
+                try:
+                    # For stability, we use the original doc and access by index
+                    p = doc[page_num]
                     
-                    # If it's a strongly text-based page, skip OCRing embedded images to prevent timeouts
+                    # 1. Direct text extraction (Fastest)
+                    t = p.get_text().strip()
                     if len(t) > 200:
-                        print(f"DEBUG: Skipping image OCR for pure text page {page_num + 1} to save resources.")
-                        continue
+                        return f"\n--- Page {page_num+1} ---\n{t}"
                     
-                    # 2. Extract images from the page for OCR (Mixed content)
-                    try:
-                        image_list = page.get_images(full=True)
-                        if image_list:
-                            print(f"DEBUG: Page {page_num + 1}: Found {len(image_list)} images. processing significant ones...")
-                            
-                            # SAFETY: Limit number of images per page to avoid hanging on complex layouts
-                            for img_index, img in enumerate(image_list[:5]): 
-                                try:
-                                    xref = img[0]
-                                    base_image = doc.extract_image(xref)
-                                    image_bytes = base_image["image"]
-                                    
-                                    # Skip small images (likely icons/logos)
-                                    if len(image_bytes) < 5000: # < 5KB
-                                        continue
-                                        
-                                    # Skip extremely large images (likely full page backgrounds that are just colors)
-                                    if len(image_bytes) > 10 * 1024 * 1024: # > 10MB
-                                        print(f"DEBUG: Skipping huge image {img_index} (>10MB)")
-                                        continue
-
-                                    # OCthis specific image
-                                    print(f"DEBUG: OCR'ing Image {img_index + 1} on Page {page_num + 1} ({len(image_bytes)} bytes)...")
-                                    tmp_img_name = ""
-                                    try:
-                                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_img:
-                                            tmp_img.write(image_bytes)
-                                            tmp_img_name = tmp_img.name
-                                        
-                                        # Use optimized ocr if available
-                                        img_text = perform_ocr_on_file(tmp_img_name)
-                                        print(f"DEBUG: Image {img_index + 1} OCR result len: {len(img_text)}")
-                                        if len(img_text) > 20:
-                                            text += f"\n\n{img_text}\n"
-                                        
-                                        # Upload significant images to Cloudinary (optional feature, maybe strictly OCR for now)
-                                        # For now, let's keep PDF focused on text extraction. 
-                                        # If we want to display images in the notes, we would upload here.
-                                        # Let's enable upload for large/significant images if they have OCR text!
-                                        if len(img_text) > 20:
-                                             image_url = upload_to_cloudinary(tmp_img_name)
-                                             if image_url:
-                                                 text += f"\n![Image]({image_url})\n"
-
-                                    finally:
-                                        if os.path.exists(tmp_img_name):
-                                            os.remove(tmp_img_name)
-                                except Exception as img_err:
-                                    print(f"Error processing image {img_index} on page {page_num}: {img_err}")
-                    except Exception as e:
-                        print(f"Error extracting images from page {page_num}: {e}")
-
-                else:
-                    # 3. Fallback: Full Page OCR (Slowest, only if no text)
-                    print(f"DEBUG: Page {page_num + 1}: No text detected. Running Full Page OCR.")
+                    # 2. OCR Fallback (200 DPI for optimal Speed + Accuracy)
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                        img_path = tmp.name
                     
-                    try:
-                        temp_filename = ""
-                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                            temp_filename = tmp.name
-                        # Closed here so pix.save works
+                    # 150 DPI: Fast upload + sufficient resolution for Google Vision
+                    pix = p.get_pixmap(dpi=150)
+                    pix.save(img_path)
+                    
+                    print(f"DEBUG: Parallel OCR'ing Page {page_num+1}...")
+                    page_text = perform_ocr_on_file(img_path)
+                    
+                    if os.path.exists(img_path):
+                        os.remove(img_path)
                         
-                        # Render page to image at 300 DPI (Standard for OCR)
-                        pix = page.get_pixmap(dpi=300) 
-                        pix.save(temp_filename)
-                        
-                        print(f"DEBUG: Starting full page OCR for Page {page_num + 1}...")
-                        page_text = perform_ocr_on_file(temp_filename)
-                        print(f"DEBUG: Finished full page OCR for Page {page_num + 1}. Len: {len(page_text)}")
-                        text += f"\n\n{page_text}\n"
-                    finally:
-                        if temp_filename and os.path.exists(temp_filename):
-                            try: 
-                                os.remove(temp_filename)
-                            except: 
-                                pass
+                    return f"\n--- Page {page_num+1} ---\n{page_text}"
+                except Exception as e:
+                    return f"\n--- Page {page_num+1} ERROR: {str(e)} ---"
+
+            # Parallel execution (5 workers: stable on Windows, avoids network congestion)
+            print(f"DEBUG: Starting parallel extraction for {total_pages} pages...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                results = list(executor.map(process_single_page, range(total_pages)))
+            
+            doc.close()
+            return { "text": "\n".join(results) }
 
         elif name.endswith(".pptx"):
-            print(f"Processing PPTX file: {name}")
-            text += process_pptx(content)
+            print(f"DEBUG: Processing PPTX file: {name}")
+            return { "text": process_pptx(content) }
 
         else:
-            # Image file - Save to temp file
+            # Image file processing
+            print(f"DEBUG: Processing Image file: {name}")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 tmp.write(content)
-                temp_filename = tmp.name
+                img_path = tmp.name
             
-            print(f"Processing image file: {temp_filename}")
-            # OCR the image
-            text += perform_ocr_on_file(temp_filename)
-            
-            # Use Cloudinary if the image is the main content? 
-            # Usually the frontend sends the image. 
-            # But if it's stored as 'extracted text', we might not need the image link 
-            # unless we want to show it.
-            # Currently the frontend displays the uploaded image as a preview locally before sending.
-            
-            # Clean up main temp file
-            if temp_filename and os.path.exists(temp_filename):
-                os.remove(temp_filename)
+            text = perform_ocr_on_file(img_path)
+            if os.path.exists(img_path): os.remove(img_path)
+            return { "text": text }
 
-        return { "text": text }
     except Exception as e:
+        print(f"Extraction Error for {file.filename}: {str(e)}")
         import traceback
-        error_msg = traceback.format_exc()
-        print(error_msg)
-        with open("error.log", "a") as f:
-            f.write(f"\n--- Error processing {file.filename} ---\n")
-            f.write(error_msg)
-            f.write("\n----------------------------------------\n")
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
-        # Double check cleanup
-        if temp_filename and os.path.exists(temp_filename):
-            try:
-                os.remove(temp_filename)
-            except:
-                pass
-        
         if temp_pdf_path and os.path.exists(temp_pdf_path):
-            try:
-                # Ensure doc is closed if it refers to this file
-                # Note: 'doc' might not be in scope if error occurred before definition
-                if 'doc' in locals() and doc:
-                    doc.close()
-                os.remove(temp_pdf_path)
-            except:
-                pass
+            try: os.remove(temp_pdf_path)
+            except: pass
 
 if __name__ == "__main__":
     import uvicorn

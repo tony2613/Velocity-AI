@@ -1,0 +1,7 @@
+﻿[dotenv@17.2.3] injecting env (13) from .env -- tip: ≡ƒôí add observability to secrets: https://dotenvx.com/ops
+Using API Key: AIzaS...
+Testing with image: test_ocr_image.png
+Γ£à Vision API SUCCESS!
+--- Extracted Text ---
+VelocityAl Test Succes
+----------------------

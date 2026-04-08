@@ -1,0 +1,110 @@
+﻿[dotenv@17.2.3] injecting env (13) from .env -- tip: ≡ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+Using API Key: AIzaS...
+Testing with image: test_ocr_image.png
+node : Γ¥î Request failed:
+At line:1 char:1
++ node 
+scripts/test-vision.js 
+2>&1 | Out-File -FilePath 
+vision_full.txt ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (Γ  
+  ¥î Request failed::St   
+ ring) [], RemoteExcep    
+tion
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Status: 403
+Data: {
+  "error": {
+    "code": 403,
+    "message": "Cloud 
+Vision API has not been 
+used in project 
+102169561650 before or it 
+is disabled. Enable it by 
+visiting https://console.d
+evelopers.google.com/apis/
+api/vision.googleapis.com/
+overview?project=102169561
+650 then retry. If you 
+enabled this API 
+recently, wait a few 
+minutes for the action to 
+propagate to our systems 
+and retry.",
+    "status": 
+"PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.goo
+gleapis.com/google.rpc.Err
+orInfo",
+        "reason": 
+"SERVICE_DISABLED",
+        "domain": 
+"googleapis.com",
+        "metadata": {
+          
+"activationUrl": "https://
+console.developers.google.
+com/apis/api/vision.google
+apis.com/overview?project=
+102169561650",
+          "service": 
+"vision.googleapis.com",
+          "consumer": 
+"projects/102169561650",
+          
+"containerInfo": 
+"102169561650",
+          "serviceTitle": 
+"Cloud Vision API"
+        }
+      },
+      {
+        "@type": "type.goo
+gleapis.com/google.rpc.Loc
+alizedMessage",
+        "locale": "en-US",
+        "message": "Cloud 
+Vision API has not been 
+used in project 
+102169561650 before or it 
+is disabled. Enable it by 
+visiting https://console.d
+evelopers.google.com/apis/
+api/vision.googleapis.com/
+overview?project=102169561
+650 then retry. If you 
+enabled this API 
+recently, wait a few 
+minutes for the action to 
+propagate to our systems 
+and retry."
+      },
+      {
+        "@type": "type.goo
+gleapis.com/google.rpc.Hel
+p",
+        "links": [
+          {
+            
+"description": "Google 
+developers console API 
+activation",
+            "url": "https:
+//console.developers.googl
+e.com/apis/api/vision.goog
+leapis.com/overview?projec
+t=102169561650"
+          }
+        ]
+      }
+    ]
+  }
+}

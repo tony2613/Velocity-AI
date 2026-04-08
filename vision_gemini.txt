@@ -1,0 +1,71 @@
+﻿[dotenv@17.2.3] injecting env (12) from .env -- tip: ≡ƒæÑ sync secrets across teammates & machines: https://dotenvx.com/ops
+Using API Key: AIzaS...
+Testing with image: test_ocr_image.png
+node : Γ¥î Request failed:
+At line:1 char:73
++ ... U0jr71FO5vPoLH3FKWYM
+808wuU"; node 
+scripts/test-vision.js 
+2>&1 | Out-F ...
++                         
+         ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (Γ  
+  ¥î Request failed::St   
+ ring) [], RemoteExcep    
+tion
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Status: 403
+Data: {
+  "error": {
+    "code": 403,
+    "message": "Requests 
+to this API 
+vision.googleapis.com 
+method google.cloud.vision
+.v1.ImageAnnotator.BatchAn
+notateImages are 
+blocked.",
+    "status": 
+"PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.goo
+gleapis.com/google.rpc.Err
+orInfo",
+        "reason": 
+"API_KEY_SERVICE_BLOCKED",
+        "domain": 
+"googleapis.com",
+        "metadata": {
+          "service": 
+"vision.googleapis.com",
+          "consumer": 
+"projects/755232756804",
+          "apiName": 
+"vision.googleapis.com",
+          "methodName": "g
+oogle.cloud.vision.v1.Imag
+eAnnotator.BatchAnnotateIm
+ages"
+        }
+      },
+      {
+        "@type": "type.goo
+gleapis.com/google.rpc.Loc
+alizedMessage",
+        "locale": "en-US",
+        "message": 
+"Requests to this API 
+vision.googleapis.com 
+method google.cloud.vision
+.v1.ImageAnnotator.BatchAn
+notateImages are blocked."
+      }
+    ]
+  }
+}

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Search, X, Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
+import { Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, Sparkles, ExternalLink } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -134,13 +133,18 @@ export default function Navbar() {
               <ThemeToggle />
               {user ? (
                 <>
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2
-                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
-                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
-                      : 'bg-primary/10 text-primary border-primary/20'}`}
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2 cursor-pointer transition-all hover:scale-105`}
+                    style={{
+                      background: isAtLimit ? 'rgba(239,68,68,0.1)' : isNearLimit ? 'rgba(245,158,11,0.1)' : 'rgba(var(--primary-rgb),0.1)',
+                      borderColor: isAtLimit ? 'rgba(239,68,68,0.3)' : isNearLimit ? 'rgba(245,158,11,0.3)' : 'rgba(var(--primary-rgb),0.3)',
+                      color: isAtLimit ? 'rgb(239,68,68)' : isNearLimit ? 'rgb(245,158,11)' : 'hsl(var(--primary))'
+                    }}
+                    title={`Uploads today: ${dailyUsage} used, ${usageLimit - dailyUsage} remaining. Resets daily at midnight UTC.`}
+                    onClick={() => setLocation('/pricing')}
                   >
                     <Sparkles className="h-3 w-3" />
-                    <span>{dailyUsage} / {usageLimit}</span>
+                    <span>{usageLimit - dailyUsage} uploads left</span>
                   </div>
                   <Link href="/upload">
                     <Button className="gap-2 mr-2">
@@ -232,20 +236,27 @@ export default function Navbar() {
           <div className="flex flex-col gap-2">
             {user ? (
               <>
-                <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold uppercase text-muted-foreground">App Usage</span>
-                    <span className="text-sm font-medium">Daily Credits</span>
+                  <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold uppercase text-muted-foreground">Document Uploads</span>
+                      <div className="w-36 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${isAtLimit ? 'bg-destructive' : isNearLimit ? 'bg-amber-500' : 'bg-primary'}`}
+                          style={{ width: `${Math.min(100, (dailyUsage / usageLimit) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{usageLimit - dailyUsage} uploads left today</span>
+                      <span className="text-[10px] text-muted-foreground/60">AI generation uses no credits</span>
+                    </div>
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold
+                      ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                        : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
+                        : 'bg-primary/10 text-primary border-primary/20'}`}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {dailyUsage}/{usageLimit}
+                    </div>
                   </div>
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold
-                    ${isAtLimit ? 'bg-destructive/10 text-destructive border-destructive/20' 
-                      : isNearLimit ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
-                      : 'bg-primary/10 text-primary border-primary/20'}`}
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    {dailyUsage} / {usageLimit}
-                  </div>
-                </div>
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.dashboard")}
                 </Link>

@@ -52,11 +52,14 @@ export default function SummaryView() {
       });
     },
     onError: (error: Error) => {
-      const isCreditError = error.message?.toLowerCase().includes("credits") || error.message?.toLowerCase().includes("upgrade");
+      const isGroqRateLimit = error.message?.includes("__GROQ_RATE_LIMIT__");
+      const isPlanLimit = error.message?.toLowerCase().includes("daily usage limit") || error.message?.toLowerCase().includes("upgrade your plan");
+      
+      const cleanMessage = error.message?.replace("__GROQ_RATE_LIMIT__: ", "");
       
       toast({
-        title: isCreditError ? "Limit Reached" : "Generation Failed",
-        description: error.message,
+        title: isGroqRateLimit ? "Service Busy" : isPlanLimit ? "Plan Limit Reached" : "Generation Failed",
+        description: cleanMessage,
         variant: "destructive",
       });
     },

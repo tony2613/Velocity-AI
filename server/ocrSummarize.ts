@@ -3,6 +3,7 @@ import axios from "axios";
 import FormData from "form-data";
 import sharp from "sharp";
 import { geminiOCR, geminiChat } from "./gemini";
+import { googleVisionOCR } from "./googleVision";
 
 const OCR_API_KEY = process.env.OCR_API_KEY || "helloworld";
 const OCR_TIMEOUT_MS = 300000;
@@ -186,6 +187,14 @@ export async function extractTextFromImage(imageData: string | Buffer, filename:
     const optimizedBuffer = await optimizeImageForOCR(buffer);
 
     try {
+      console.log("[OCR] Attempting Google Vision OCR (Primary)...");
+      const result = await googleVisionOCR(optimizedBuffer);
+      if (result && result.trim().length > 5) return result;
+    } catch (e: any) {
+      console.warn("[Google Vision] Image OCR failed, falling back to Gemini:", e.message);
+    }
+
+    try {
       if (process.env.GEMINI_API_KEY) {
         const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
         const result = await geminiOCR(optimizedBuffer, mimeType);
@@ -221,18 +230,22 @@ export async function extractTextFromPDF(pdfData: string | Buffer, filename: str
       return parsedText;
     }
 
+    // PDFs must be routed to Python because Google Vision REST API does not support PDF directly.
+    // Python handles splitting the PDF into images first.
+    console.log(`[OCR] Routing PDF (${Math.round(buffer.length/1024)} KB) to Python backend for High-Precision OCR...`);
+    const pyText = await callLocalPythonExtract(buffer, filename);
+    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
+      return pyText;
+    }
+
     try {
       if (process.env.GEMINI_API_KEY) {
+        console.log("[OCR] Falling back to Gemini for PDF...");
         const result = await geminiOCR(buffer, "application/pdf");
         if (result && result.trim().length > 10) return result;
       }
     } catch (e: any) {
       console.error("[Gemini] PDF OCR failed:", e.message);
-    }
-
-    const pyText = await callLocalPythonExtract(buffer, filename);
-    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error")) {
-      return pyText;
     }
 
     return await callOcrSpaceBuffer(buffer, filename);
@@ -284,32 +297,32 @@ export async function generateSummary(
     console.log(`Generating summary using ${preferredModel} for ${truncatedText.length} characters in ${language}`);
 
     const systemPrompt = 
-      `ACT AS A SENIOR UNIVERSITY PROFESSOR & LEAD EXAMINER. YOUR GOAL IS TO PROVIDE THE HIGHEST ACCURACY, 100% EXHAUSTIVE, AND LEGALLY CORRECT SOLUTIONS.
-      
-      ⚠️ STRICT OPERATIONAL FLOW:
-      Step 1: SILENT REASONING. Locate every numerical value, balance, and problem requirement. Determine the Add/Less or Dr/Cr logic before writing.
-      Step 2: EXHAUSTIVE LESSON. Do not miss any detail. Treat this as a complete classroom session.
-      
-      ⚠️ MANDATORY RESPONSE STRUCTURE (USE EXACTLY THESE HEADERS):
-      ## 1. OVERVIEW
-      (Identify the topic and ALL problems that need solving.)
-      
-      ## 2. LESSON_AND_SOLUTION
-      (This is 90% of the response. MUST BE EXHAUSTIVE.
-      - ⚠️ MULTI-PROBLEM RULE: If there are multiple questions or problems in the text, you MUST solve EVERY SINGLE ONE. Do not skip any.
-      - MATH: Solve each problem with a Table. Use Add (+) / Less (-) logic for Reconciliation/BRS. NEVER skip a figure. Show final totals for every problem.
-      - THEORY: Comprehensive notes, Key Terminology (detailed), and Exam Concepts. Provide deep explanations for all theory.)
-      
-      ## 3. TAKEAWAYS
-      (The absolute must-know final answers or concepts for exams.)
-      
-      ACCOUNTING PROFORMAS:
-      Reconciliation: Start with Book A profit -> Add (+) income/credits only in Book B, over-recovered costs, etc. -> Less (-) expenses/debits only in Book B. -> Final reconciled profit.
-      BRS: Start with Cash Book -> Add/Less reconciling items -> Final Pass Book balance.
-      
-      CRITICAL: Output ONLY these three numbered headers. BE AS VERBOSE AS POSSIBLE. IF NECESSARY, GENERATE A VERY LONG RESPONSE TO ENSURE COMPLETENESS.`;
+      `You are an expert university professor and lead examiner. Your task is to produce an exhaustive, accurate lesson and solution based SOLELY on the content the user provides.
 
-    const userPrompt = `Professor, solve EVERY problem in this text using tables and provide exhaustive notes for all theory units.\n\n${truncatedText}`;
+      ⚠️ PRIME DIRECTIVE: Respond ONLY to what is in the text. If the document is about Biology, teach Biology. If History, teach History. If Accounting, solve the specific accounting problem presented. NEVER invent topics, examples, or questions not in the text.
+
+      ⚠️ SUBJECT-SPECIFIC RULES:
+      - ACCOUNTING & FINANCE: Identify the exact topic (e.g., P&L, Balance Sheet, Trial Balance, BRS, Bank Reconciliation, Cash Flow Statement, Depreciation, Ratio Analysis, Partnership Accounts, Company Accounts, etc.). Solve using the correct proforma for THAT specific topic. Show all workings in tables.
+      - MATHEMATICS: Solve all problems step-by-step. Show every working line. Final answers must be clearly boxed.
+      - SCIENCE: Cover theory, formulas, diagrams (text-based), and example problems.
+      - HUMANITIES/THEORY: Provide comprehensive notes with key terminology, causes, effects, examples, and exam-ready points.
+
+      ⚠️ MANDATORY RESPONSE STRUCTURE:
+      ## 1. OVERVIEW
+      (State the exact subject and list all specific topics/problems found in the text.)
+
+      ## 2. LESSON_AND_SOLUTION
+      (90% of the response. Exhaustively cover EVERY problem and topic in the document.
+      - Solve EVERY question, calculation, or problem presented.
+      - For multi-part questions, label each part clearly.
+      - Do NOT skip any detail.)
+
+      ## 3. TAKEAWAYS
+      (The must-know answers, formulas, and key points from THIS document only.)
+
+      CRITICAL: Be as detailed and verbose as needed. Only reference content from the provided text.`;
+
+    const userPrompt = `Professor, analyse and solve EVERYTHING in this document text. Be exhaustive.\n\n${truncatedText}`;
     let summaryText = "";
     let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
@@ -371,7 +384,7 @@ export async function generateSummary(
         };
         
         if (isRateLimit(primaryError) || isRateLimit(fallbackError)) {
-             throw new Error("You have run out of AI credits. Please upgrade your plan to continue generating.");
+             throw new Error("__GROQ_RATE_LIMIT__: The AI service is temporarily busy. Please wait 1-2 minutes and try again.");
         }
         throw primaryError; 
       }
@@ -434,9 +447,31 @@ export async function generateSummary(
 export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "llama-3.3-70b-versatile") {
   try {
     const extracted = await extractTextFromFile(fileData, filename);
-    if (extracted.includes("[⚠️") && extracted.includes("]")) return { extracted, summary: "", keyPoints: [], error: extracted };
-    if (extracted.replace(/\s/g, "").length < 50) return { extracted, summary: "[Insufficient text]", keyPoints: [], error: "Insufficient text." };
-    const res = await generateSummary(extracted, "English", preferredModel);
+    
+    // BEST-EFFORT MODE: Only block if ALL the text is an error message.
+    // Partial page failures (e.g., one blank page in a 10-page doc) should not block the summary.
+    const cleanedText = extracted
+      .split("\n")
+      .filter(line => !line.includes("[Python OCR failed") && !line.includes("ERROR ---") && !line.trim().startsWith("---"))
+      .join("\n")
+      .trim();
+
+    const isCompleteFailure =
+      cleanedText.length < 50 ||
+      cleanedText.toLowerCase().includes("not reachable") ||
+      cleanedText.toLowerCase().includes("[empty pdf]");
+
+    if (isCompleteFailure) {
+      console.warn(`[OCR Failure] Blocking summarization for ${filename}: No usable text found.`);
+      return {
+        extracted,
+        summary: "Unable to generate summary: No readable text could be extracted from this document. Please ensure the document is a clear, non-encrypted PDF or image.",
+        keyPoints: [],
+        error: "No readable text extracted."
+      };
+    }
+
+    const res = await generateSummary(cleanedText, "English", preferredModel);
     return { extracted, ...res };
   } catch (e: any) {
     return { extracted: "", summary: "", keyPoints: [], error: e.message };
