@@ -91,6 +91,7 @@ export default function FloatingCana() {
 
       {/* Main Floating Component */}
       <div 
+        id="tut-cana"
         className={`fixed z-[101] left-1/2 -translate-x-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] max-h-[85dvh] overflow-hidden flex flex-col w-[90%] ${
           isOpen 
             ? "top-[12dvh] sm:top-[15dvh] max-w-3xl scale-100" 

@@ -31,7 +31,6 @@ import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Pricing from "@/pages/Pricing";
 import ResetPassword from "@/pages/ResetPassword";
-import GuestDemo from "@/pages/GuestDemo";
 import { LanguageProvider } from "@/context/LanguageContext";
 
 function Router() {
@@ -40,7 +39,6 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/demo" component={GuestDemo} />
 
       {/* Protected Routes */}
       <ProtectedRoute path="/dashboard" component={Dashboard} />

@@ -4,7 +4,6 @@ import { storage } from "./storage";
 import { eq } from "drizzle-orm";
 import { insertNoteSchema, paymentRequests, insertResearchSchema } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
-import ocrPreprocessRouter from "./ocrPreprocess";
 import multer from "multer";
 import Groq from "groq-sdk";
 import { geminiChat } from "./gemini";
@@ -81,135 +80,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Endpoint availability
     diagnostics.endpoints = {
-      "/api/ocr-summarize": "POST - File upload + OCR + summarize",
-      "/api/ocr-preprocess": "POST - Preprocess image + OCR (with diagnostics)",
-      "/api/notes/:id/summary": "POST - Generate AI summary with Groq",
-      "/api/notes/:id/quiz": "POST - Generate AI quiz with Groq",
-      "/api/process-image": "POST - Extract + summarize images/PDFs",
-      "/api/notes": "GET - List all notes",
+      "diagnostics": "GET - System health check",
+      "notes": "GET/POST - Manage student notes",
+      "quizzes": "GET/POST - Manage student quizzes",
     };
 
     res.json(diagnostics);
   });
 
-  // Mount OCR Preprocessing router
-  // Mount OCR Preprocessing router
-  app.use(ocrPreprocessRouter);
-
-  // ─── GUEST DEMO ENDPOINTS (no auth required) ──────────────────────────────
-  // Simple in-memory IP rate limiter: { ip_action -> { count, resetAt } }
-  const guestUsage = new Map<string, { count: number; resetAt: number }>();
-  const GUEST_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-  function checkGuestLimit(ip: string, action: string, limit = 1): boolean {
-    const key = `${ip}::${action}`;
-    const now = Date.now();
-    const entry = guestUsage.get(key);
-    if (!entry || now > entry.resetAt) {
-      guestUsage.set(key, { count: 1, resetAt: now + GUEST_WINDOW_MS });
-      return true; // allowed
-    }
-    if (entry.count < limit) {
-      entry.count++;
-      return true;
-    }
-    return false; // limit exceeded
-  }
-
-  // Guest: summarize a PDF or text (no auth, no DB save)
-  app.post("/api/guest/summarize", async (req, res) => {
-    const ip = req.ip || "unknown";
-    if (!checkGuestLimit(ip, "summarize")) {
-      return res.status(429).json({ error: "Guest trial used. Please sign up to continue.", limitReached: true });
-    }
-    try {
-      const { imageData, title, isPDF } = req.body;
-      if (!imageData || !title) {
-        return res.status(400).json({ error: "Missing imageData or title" });
-      }
-      let extractedText = "";
-      try {
-        if (isPDF) {
-          extractedText = await extractTextFromPDF(imageData);
-        } else if (title.toLowerCase().endsWith(".pptx") || title.toLowerCase().endsWith(".ppt")) {
-          extractedText = await extractTextFromPPT(imageData, title);
-        } else {
-          extractedText = await extractTextFromImage(imageData);
-        }
-      } catch (e: any) {
-        extractedText = "[Failed to extract text. Please try a clearer document.]";
-      }
-      const { summary, keyPoints } = await generateSummary(extractedText);
-      res.json({ summary, keyPoints, extractedText: extractedText.substring(0, 6000) });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to process file" });
-    }
-  });
-
-  // Guest: generate quiz from text (no auth, no DB save)
-  app.post("/api/guest/quiz", async (req, res) => {
-    const ip = req.ip || "unknown";
-    if (!checkGuestLimit(ip, "quiz")) {
-      return res.status(429).json({ error: "Guest quiz trial used. Please sign up to continue.", limitReached: true });
-    }
-    try {
-      const { content } = req.body;
-      if (!content || content.trim().length < 50) {
-        return res.status(400).json({ error: "Content too short to generate a quiz" });
-      }
-      const groq = getGroq();
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are a study assistant. Output ONLY valid JSON, no markdown. Your response must start with { and end with }." },
-          { role: "user", content: `Create exactly 5 multiple-choice quiz questions from this text.\n\nText:\n${content.substring(0, 6000)}\n\nReturn ONLY this JSON:\n{"questions": [{"question": "Q?", "options": ["A", "B", "C", "D"], "correctAnswer": 0, "explanation": "Why"}]}` },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      });
-      let jsonStr = (completion.choices[0].message.content || "{}").trim()
-        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const match = jsonStr.match(/\{[\s\S]*\}/);
-      if (match) jsonStr = match[0];
-      const quizData = JSON.parse(jsonStr);
-      if (!quizData.questions?.length) throw new Error("AI did not return valid questions");
-      res.json({ questions: quizData.questions });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to generate quiz" });
-    }
-  });
-
-  // Guest: search / AI research (no auth, no DB save)
-  app.post("/api/guest/search", async (req, res) => {
-    const ip = req.ip || "unknown";
-    if (!checkGuestLimit(ip, "search")) {
-      return res.status(429).json({ error: "Guest search trial used. Please sign up to continue.", limitReached: true });
-    }
-    try {
-      const { question } = req.body;
-      if (!question || question.length < 3) {
-        return res.status(400).json({ error: "Question too short" });
-      }
-      const groq = getGroq();
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: `You are an expert educational researcher. Return a JSON object with a "results" array. Each item must have "title" (concise heading), "snippet" (3-4 sentence explanation), and "link" ("#"). Provide 4-5 diverse perspectives.` },
-          { role: "user", content: `Research this topic in depth: "${question}"` },
-        ],
-        temperature: 0.5,
-        response_format: { type: "json_object" },
-      });
-      let jsonStr = (completion.choices[0].message.content || "{}").trim()
-        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const match = jsonStr.match(/\{[\s\S]*\}/);
-      if (match) jsonStr = match[0];
-      const data = JSON.parse(jsonStr);
-      res.json({ results: data.results || [] });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to search" });
-    }
-  });
   // ───────────────────────────────────────────────────────────────────────────
 
   // Handle file uploads with rate limiting

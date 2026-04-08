@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import OnboardingTutorial from "@/components/OnboardingTutorial";
 import StatsCard from "@/components/StatsCard";
 import NoteCard from "@/components/NoteCard";
 import UploadZone from "@/components/UploadZone";
@@ -50,6 +51,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <OnboardingTutorial />
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <div>
@@ -80,7 +82,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between">
+            <div id="tut-notes" className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold">{t("dash.your_notes")}</h2>
             </div>
 

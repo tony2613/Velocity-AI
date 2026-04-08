@@ -134,6 +134,7 @@ export default function Navbar() {
               {user ? (
                 <>
                   <div
+                    id="tut-credits"
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2 cursor-pointer transition-all hover:scale-105`}
                     style={{
                       background: isAtLimit ? 'rgba(239,68,68,0.1)' : isNearLimit ? 'rgba(245,158,11,0.1)' : 'rgba(var(--primary-rgb),0.1)',
@@ -147,7 +148,7 @@ export default function Navbar() {
                     <span>{usageLimit - dailyUsage} uploads left</span>
                   </div>
                   <Link href="/upload">
-                    <Button className="gap-2 mr-2">
+                    <Button id="tut-upload" className="gap-2 mr-2">
                       <Upload className="h-4 w-4" />
                       <span className="hidden sm:inline">{t("nav.upload")}</span>
                     </Button>
