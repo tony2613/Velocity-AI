@@ -1,0 +1,6 @@
+﻿
+> rest-express@1.0.0 check
+> tsc
+
+client/src/pages/SummaryView.tsx(1,17): error TS6133: 'useMemo' is declared but its value is never read.
+client/src/pages/SummaryView.tsx(8,68): error TS6133: 'GraduationCap' is declared but its value is never read.

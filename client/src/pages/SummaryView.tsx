@@ -1,11 +1,11 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useParams, Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, GraduationCap, Search } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
