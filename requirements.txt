@@ -12,3 +12,4 @@ paddlepaddle
 opencv-python-headless
 python-pptx
 cloudinary
+python-dotenv
