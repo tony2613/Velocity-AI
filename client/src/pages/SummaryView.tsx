@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Check } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,9 +13,58 @@ import type { Note, Summary } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+function CopyButton({ getText }: { getText: () => string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      const text = getText();
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const text = getText();
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [getText]);
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleCopy}
+      className="gap-1.5 text-xs transition-all"
+      data-testid="button-copy"
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-green-500" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5" />
+          Copy
+        </>
+      )}
+    </Button>
+  );
+}
+
 export default function SummaryView() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("full");
 
   const { data: note, isLoading: noteLoading } = useQuery<Note>({
     queryKey: [`/api/notes/${id}`],
@@ -164,14 +213,28 @@ export default function SummaryView() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-bold truncate">{note.title}</h1>
             <p className="text-muted-foreground">{note.subject}</p>
           </div>
+          {summary && !error && (
+            <CopyButton
+              getText={() => {
+                if (activeTab === "full") return summary.content || "";
+                if (activeTab === "snapshot") return getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0] || "";
+                if (activeTab === "takeaways") return (summary.keyPoints.length > 0 ? summary.keyPoints : []).join("\n");
+                if (activeTab === "raw") return note.content || "";
+                if (activeTab === "research" && (summary as any).topicExplanations) {
+                  return Object.entries((summary as any).topicExplanations).map(([topic, explanation]) => `${topic}\n${explanation}`).join("\n\n");
+                }
+                return summary.content || "";
+              }}
+            />
+          )}
         </div>
 
         {summary && !error ? (
-          <Tabs defaultValue={defaultTab} className="space-y-6">
+          <Tabs defaultValue={defaultTab} className="space-y-6" onValueChange={setActiveTab}>
             <div className="sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2 -mx-4 px-4 border-b">
               <TabsList className="w-full justify-start overflow-x-auto no-scrollbar bg-transparent h-auto p-0 gap-6">
                 <TabsTrigger value="snapshot" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">

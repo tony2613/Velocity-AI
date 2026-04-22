@@ -743,23 +743,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Process image/PDF with OCR and text extraction
   app.post("/api/process-image", isAuthenticated, checkUsageLimit, async (req, res) => {
     try {
-      const { imageData, title, subject, isPDF } = req.body;
+      const { imageData, imageDataList, title, subject, isPDF } = req.body;
 
-      if (!imageData || !title || !subject) {
-        return res.status(400).json({ error: "Missing required fields: imageData, title, subject" });
+      const images: string[] = imageDataList && Array.isArray(imageDataList) && imageDataList.length > 0
+        ? imageDataList
+        : imageData ? [imageData] : [];
+
+      if (images.length === 0 || !title || !subject) {
+        return res.status(400).json({ error: "Missing required fields: imageData/imageDataList, title, subject" });
       }
 
-      console.log(`[API] Processing ${isPDF ? "PDF" : "Image"}. Size: ${imageData.length} chars (approx ${Math.round(imageData.length * 0.75 / 1024)} KB)`);
+      console.log(`[API] Processing ${isPDF ? "PDF" : "Image"}(s). Count: ${images.length}, Total size: ${images.reduce((a, b) => a + b.length, 0)} chars`);
 
       let extractedText = "";
 
       try {
-        if (isPDF) {
-          extractedText = await extractTextFromPDF(imageData);
-        } else if (title.toLowerCase().endsWith(".pptx") || title.toLowerCase().endsWith(".ppt")) {
-          extractedText = await extractTextFromPPT(imageData, title);
+        if (images.length === 1) {
+          // Single file processing (original behavior)
+          if (isPDF) {
+            extractedText = await extractTextFromPDF(images[0]);
+          } else if (title.toLowerCase().endsWith(".pptx") || title.toLowerCase().endsWith(".ppt")) {
+            extractedText = await extractTextFromPPT(images[0], title);
+          } else {
+            extractedText = await extractTextFromImage(images[0]);
+          }
         } else {
-          extractedText = await extractTextFromImage(imageData);
+          // Multiple images — extract text from each and concatenate
+          const extractedParts: string[] = [];
+          for (let i = 0; i < images.length; i++) {
+            try {
+              const text = await extractTextFromImage(images[i]);
+              extractedParts.push(`--- Page ${i + 1} ---\n${text}`);
+            } catch (imgErr: any) {
+              console.warn(`[API] Failed to extract text from image ${i + 1}:`, imgErr.message);
+              extractedParts.push(`--- Page ${i + 1} ---\n[Failed to extract text from this image]`);
+            }
+          }
+          extractedText = extractedParts.join("\n\n");
         }
       } catch (extractError: any) {
         console.error("Extraction error:", extractError);

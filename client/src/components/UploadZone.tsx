@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Loader2, Music, Mic, Square } from "lucide-react";
+import { Upload, Loader2, Music, Mic, Square, X } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +19,7 @@ export default function UploadZone() {
   const [pastedText, setPastedText] = useState("");
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
-  const [imageData, setImageData] = useState<string>("");
+  const [imageDataList, setImageDataList] = useState<string[]>([]);
   const [audioData, setAudioData] = useState<string>("");
   const [audioFileName, setAudioFileName] = useState<string>("");
   const [fileType, setFileType] = useState<"pdf" | "ppt" | "image" | "text" | "audio" | "">();
@@ -51,7 +51,7 @@ export default function UploadZone() {
       setPastedText("");
       setTitle("");
       setSubject("");
-      setImageData("");
+      setImageDataList([]);
       setAudioData("");
       setAudioFileName("");
       setRecordedAudioUrl("");
@@ -81,7 +81,7 @@ export default function UploadZone() {
   });
 
   const processImageMutation = useMutation({
-    mutationFn: async (data: { imageData: string; title: string; subject: string; isPDF?: boolean; language?: string }) => {
+    mutationFn: async (data: { imageData?: string; imageDataList?: string[]; title: string; subject: string; isPDF?: boolean; language?: string }) => {
       const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
       const response = await fetch("/api/process-image", {
         method: "POST",
@@ -97,7 +97,7 @@ export default function UploadZone() {
       setPastedText("");
       setTitle("");
       setSubject("");
-      setImageData("");
+      setImageDataList([]);
       setAudioData("");
       setAudioFileName("");
       setRecordedAudioUrl("");
@@ -216,7 +216,13 @@ export default function UploadZone() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFileRead(files[0]);
+      // If multiple image files selected, handle them all
+      const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+      if (imageFiles.length > 1) {
+        handleMultipleImages(imageFiles);
+      } else {
+        handleFileRead(files[0]);
+      }
     }
   };
 
@@ -227,12 +233,31 @@ export default function UploadZone() {
     }
   };
 
+  const handleMultipleImages = (files: File[]) => {
+    const results: string[] = [];
+    let loaded = 0;
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        results.push(e.target?.result as string);
+        loaded++;
+        if (loaded === files.length) {
+          setImageDataList(results);
+          setPastedText(`[${files.length} Images Ready for Processing]\nFiles: ${files.map(f => f.name).join(", ")}`);
+          setTitle(files[0].name.replace(/\.[^/.]+$/, ""));
+          setFileType("image");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileRead = (file: File) => {
     if (file.type === "application/pdf") {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = e.target?.result as string;
-        setImageData(base64);
+        setImageDataList([base64]);
         setPastedText(`[PDF Ready for Processing]\nFile: ${file.name}`);
         setTitle(file.name.replace(/\.[^/.]+$/, ""));
         setFileType("pdf");
@@ -242,7 +267,7 @@ export default function UploadZone() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = e.target?.result as string;
-        setImageData(base64);
+        setImageDataList([base64]);
         setPastedText(`[PPT Ready for Processing]\nFile: ${file.name}`);
         setTitle(file.name.replace(/\.[^/.]+$/, ""));
         setFileType("ppt");
@@ -252,7 +277,7 @@ export default function UploadZone() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
-        setImageData(base64);
+        setImageDataList([base64]);
         setPastedText(`[Image Ready for Processing]\nFile: ${file.name}`);
         setTitle(file.name.replace(/\.[^/.]+$/, ""));
         setFileType("image");
@@ -312,10 +337,11 @@ export default function UploadZone() {
 
     if (fileType === "pdf" || fileType === "image") {
       processImageMutation.mutate({
-        imageData,
+        imageData: imageDataList.length === 1 ? imageDataList[0] : undefined,
+        imageDataList: imageDataList.length > 1 ? imageDataList : undefined,
         title: title.trim(),
         subject: subject.trim(),
-        isPDF: fileType === "pdf", // Note: The backend checks for PPT extension via title/filename if isPDF is false
+        isPDF: fileType === "pdf",
         language: localStorage.getItem("velocity_language") || "English",
       });
     } else if (fileType === "audio") {
@@ -337,7 +363,7 @@ export default function UploadZone() {
   const isProcessing = processImageMutation.isPending || createNoteMutation.isPending;
 
   return (
-    <Card className="relative overflow-hidden">
+    <Card className="relative overflow-hidden max-w-full">
       {isProcessing && (
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-50">
           <div className="flex flex-col items-center space-y-4 p-6 bg-card border border-border rounded-xl shadow-lg animate-in fade-in zoom-in duration-300">
@@ -382,6 +408,7 @@ export default function UploadZone() {
                 className="hidden"
                 id="file-upload"
                 accept=".txt,.pdf,.ppt,.pptx,.doc,.docx,image/*"
+                multiple
                 onChange={handleFileSelect}
               />
               <Button asChild data-testid="button-browse-unified" disabled={isProcessing} className="w-full md:w-auto h-12 text-base">
@@ -392,17 +419,46 @@ export default function UploadZone() {
               </Button>
             </div>
 
-            {imageData && (
+            {imageDataList.length > 0 && (
               <div className="space-y-4 pt-4 border-t">
-                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3 overflow-hidden">
                   <p className="text-sm font-medium">
                     {fileType === "pdf" && "📄 PDF file ready for processing"}
                     {fileType === "ppt" && "📊 Presentation ready for processing"}
-                    {fileType === "image" && "🖼️ Image ready for processing"}
+                    {fileType === "image" && imageDataList.length === 1 && "🖼️ Image ready for processing"}
+                    {fileType === "image" && imageDataList.length > 1 && `🖼️ ${imageDataList.length} images ready for processing`}
                     {fileType === "text" && "📝 Text file loaded"}
                   </p>
-                  {imageData && (
-                    <img src={imageData} alt="Preview" className="max-h-64 mx-auto rounded-md" />
+                  {imageDataList.length === 1 && imageDataList[0] && (
+                    <img src={imageDataList[0]} alt="Preview" className="max-h-64 max-w-full w-auto mx-auto rounded-md object-contain" />
+                  )}
+                  {imageDataList.length > 1 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {imageDataList.map((img, idx) => (
+                        <div key={idx} className="relative group rounded-md overflow-hidden border border-border">
+                          <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-24 object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = imageDataList.filter((_, i) => i !== idx);
+                              setImageDataList(updated);
+                              if (updated.length === 0) {
+                                setPastedText("");
+                                setFileType("");
+                              } else {
+                                setPastedText(`[${updated.length} Image${updated.length > 1 ? "s" : ""} Ready for Processing]`);
+                              }
+                            }}
+                            className="absolute top-1 right-1 h-5 w-5 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                          <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
+                            {idx + 1}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 

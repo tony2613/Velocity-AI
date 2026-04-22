@@ -320,7 +320,8 @@ export async function generateSummary(
       ## 3. TAKEAWAYS
       (The must-know answers, formulas, and key points from THIS document only.)
 
-      CRITICAL: Be as detailed and verbose as needed. Only reference content from the provided text.`;
+      CRITICAL: Be as detailed and verbose as needed. Only reference content from the provided text.
+      IMPORTANT LANGUAGE RULE: You MUST write your entire response, all explanations, and all notes entirely in ${language}.`;
 
     const userPrompt = `Professor, analyse and solve EVERYTHING in this document text. Be exhaustive.\n\n${truncatedText}`;
     let summaryText = "";

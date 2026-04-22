@@ -1,9 +1,12 @@
+import { useState, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import StatsCard from "@/components/StatsCard";
 import NoteCard from "@/components/NoteCard";
 import UploadZone from "@/components/UploadZone";
-import { FileText, CheckCircle, Flame } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileText, CheckCircle, Flame, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,6 +17,8 @@ import { isToday, isYesterday } from "date-fns";
 export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
+
   const { data: notes, isLoading } = useQuery<Note[]>({
     queryKey: ["/api/notes"],
   });
@@ -47,6 +52,40 @@ export default function Dashboard() {
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     return new Date(date).toLocaleDateString();
+  };
+
+  // Group notes by subject (case-insensitive), sorted by most recent note first
+  const subjectGroups = useMemo(() => {
+    if (!notes || notes.length === 0) return [];
+    const groups: Record<string, { subject: string; notes: Note[] }> = {};
+    for (const note of notes) {
+      const key = note.subject.toLowerCase().trim();
+      if (!groups[key]) {
+        groups[key] = { subject: note.subject, notes: [] };
+      }
+      groups[key].notes.push(note);
+    }
+    // Sort each group's notes by date (newest first)
+    for (const key of Object.keys(groups)) {
+      groups[key].notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    // Sort groups by most recent note
+    return Object.values(groups).sort(
+      (a, b) => new Date(b.notes[0].createdAt).getTime() - new Date(a.notes[0].createdAt).getTime()
+    );
+  }, [notes]);
+
+  const toggleSubject = (subject: string) => {
+    setExpandedSubjects((prev) => {
+      const next = new Set(prev);
+      const key = subject.toLowerCase().trim();
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
   return (
@@ -96,18 +135,74 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : notes && notes.length > 0 ? (
+            ) : subjectGroups.length > 0 ? (
               <div className="grid gap-6">
-                {notes.map((note) => (
-                  <NoteCard
-                    key={note.id}
-                    id={note.id}
-                    title={note.title}
-                    subject={note.subject}
-                    preview={note.content.slice(0, 200) + "..."}
-                    date={formatDate(note.createdAt)}
-                  />
-                ))}
+                {subjectGroups.map((group) => {
+                  const key = group.subject.toLowerCase().trim();
+                  const isExpanded = expandedSubjects.has(key);
+
+                  // Single note in subject — render as a normal card
+                  if (group.notes.length === 1) {
+                    const note = group.notes[0];
+                    return (
+                      <NoteCard
+                        key={note.id}
+                        id={note.id}
+                        title={note.title}
+                        subject={note.subject}
+                        preview={note.content.slice(0, 200) + "..."}
+                        date={formatDate(note.createdAt)}
+                      />
+                    );
+                  }
+
+                  // Multiple notes — render as collapsible subject group
+                  return (
+                    <Card key={key} className="overflow-hidden" data-testid={`subject-group-${key}`}>
+                      <CardHeader
+                        className="flex flex-row items-center gap-3 py-4 px-5 cursor-pointer hover:bg-muted/30 transition-colors select-none"
+                        onClick={() => toggleSubject(group.subject)}
+                      >
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <FolderOpen className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-base">{group.subject}</h3>
+                            <Badge variant="secondary" className="text-xs">
+                              {group.notes.length} notes
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Last updated {formatDate(group.notes[0].createdAt)}
+                          </p>
+                        </div>
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 transition-transform" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 transition-transform" />
+                        )}
+                      </CardHeader>
+                      {isExpanded && (
+                        <CardContent className="p-0 border-t">
+                          <div className="divide-y divide-border">
+                            {group.notes.map((note) => (
+                              <NoteCard
+                                key={note.id}
+                                id={note.id}
+                                title={note.title}
+                                subject={note.subject}
+                                preview={note.content.slice(0, 200) + "..."}
+                                date={formatDate(note.createdAt)}
+                                compact
+                              />
+                            ))}
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12 border rounded-lg">

@@ -21,9 +21,10 @@ interface NoteCardProps {
   date: string;
   id: string;
   audioData?: string;
+  compact?: boolean;
 }
 
-export default function NoteCard({ title, subject, preview, date, id, audioData }: NoteCardProps) {
+export default function NoteCard({ title, subject, preview, date, id, audioData, compact }: NoteCardProps) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
@@ -74,6 +75,67 @@ export default function NoteCard({ title, subject, preview, date, id, audioData 
       });
     },
   });
+
+  // Compact variant: single row for use inside subject group cards
+  if (compact) {
+    return (
+      <div
+        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors group"
+        data-testid={`card-note-compact-${id}`}
+      >
+        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+        <Link href={`/summary/${id}`} className="flex-1 min-w-0 cursor-pointer">
+          <h4 className="text-sm font-medium truncate group-hover:text-primary transition-colors">{title}</h4>
+        </Link>
+        <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">{date}</span>
+        <div className="flex gap-1 shrink-0">
+          <Link href={`/summary/${id}`}>
+            <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-view-compact-${id}`}>
+              <FileText className="h-3 w-3" />
+            </Button>
+          </Link>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => generateQuizMutation.mutate()}
+            disabled={isGeneratingQuiz}
+            data-testid={`button-quiz-compact-${id}`}
+          >
+            {isGeneratingQuiz ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`button-menu-compact-${id}`}>
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/summary/${id}`}>
+                  <a className="w-full">View Summary</a>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => generateQuizMutation.mutate()}>
+                Generate Quiz
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => deleteNoteMutation.mutate()}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="hover-elevate" data-testid={`card-note-${id}`}>
