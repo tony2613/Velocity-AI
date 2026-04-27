@@ -81,7 +81,7 @@ export default function UploadZone() {
   });
 
   const processImageMutation = useMutation({
-    mutationFn: async (data: { imageData?: string; imageDataList?: string[]; title: string; subject: string; isPDF?: boolean; language?: string }) => {
+    mutationFn: async (data: { imageData?: string; imageDataList?: string[]; title: string; subject: string; isPDF?: boolean; isPPT?: boolean; language?: string }) => {
       const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
       const response = await fetch("/api/process-image", {
         method: "POST",
@@ -335,13 +335,14 @@ export default function UploadZone() {
       setSubmittedAudioFileName(audioFileName);
     }
 
-    if (fileType === "pdf" || fileType === "image") {
+    if (fileType === "pdf" || fileType === "ppt" || fileType === "image") {
       processImageMutation.mutate({
         imageData: imageDataList.length === 1 ? imageDataList[0] : undefined,
         imageDataList: imageDataList.length > 1 ? imageDataList : undefined,
         title: title.trim(),
         subject: subject.trim(),
         isPDF: fileType === "pdf",
+        isPPT: fileType === "ppt",
         language: localStorage.getItem("velocity_language") || "English",
       });
     } else if (fileType === "audio") {

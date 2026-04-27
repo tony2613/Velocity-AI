@@ -264,6 +264,29 @@ export async function extractTextFromPPT(pptData: string | Buffer, filename: str
     } else {
       buffer = pptData;
     }
+
+    // Primary: Route to Python backend which uses python-pptx for proper extraction
+    // (text, tables, charts, speaker notes, embedded images with OCR)
+    console.log(`[PPT] Routing PPTX (${Math.round(buffer.length/1024)} KB) to Python backend for extraction...`);
+    const pyText = await callLocalPythonExtract(buffer, filename);
+    if (pyText && !pyText.includes("[Python OCR service not reachable]") && !pyText.includes("[Python OCR error") && pyText.trim().length > 20) {
+      console.log(`[PPT] Python extraction successful: ${pyText.length} chars`);
+      return pyText;
+    }
+
+    // Fallback: Try Gemini OCR if Python is unavailable
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        console.log("[PPT] Python unavailable, falling back to Gemini OCR...");
+        const result = await geminiOCR(buffer, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+        if (result && result.trim().length > 10) return result;
+      }
+    } catch (e: any) {
+      console.warn("[PPT] Gemini OCR failed:", e.message);
+    }
+
+    // Last resort: OCR.space
+    console.log("[PPT] Falling back to OCR.space...");
     return await callOcrSpaceBuffer(buffer, filename);
   } catch (error: any) {
     console.error("PPT extraction error:", error.message);

@@ -743,7 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Process image/PDF with OCR and text extraction
   app.post("/api/process-image", isAuthenticated, checkUsageLimit, async (req, res) => {
     try {
-      const { imageData, imageDataList, title, subject, isPDF } = req.body;
+      const { imageData, imageDataList, title, subject, isPDF, isPPT } = req.body;
 
       const images: string[] = imageDataList && Array.isArray(imageDataList) && imageDataList.length > 0
         ? imageDataList
@@ -753,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: imageData/imageDataList, title, subject" });
       }
 
-      console.log(`[API] Processing ${isPDF ? "PDF" : "Image"}(s). Count: ${images.length}, Total size: ${images.reduce((a, b) => a + b.length, 0)} chars`);
+      console.log(`[API] Processing ${isPDF ? "PDF" : isPPT ? "PPT" : "Image"}(s). Count: ${images.length}, Total size: ${images.reduce((a, b) => a + b.length, 0)} chars`);
 
       let extractedText = "";
 
@@ -762,8 +762,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Single file processing (original behavior)
           if (isPDF) {
             extractedText = await extractTextFromPDF(images[0]);
-          } else if (title.toLowerCase().endsWith(".pptx") || title.toLowerCase().endsWith(".ppt")) {
-            extractedText = await extractTextFromPPT(images[0], title);
+          } else if (isPPT) {
+            extractedText = await extractTextFromPPT(images[0], title + ".pptx");
           } else {
             extractedText = await extractTextFromImage(images[0]);
           }
