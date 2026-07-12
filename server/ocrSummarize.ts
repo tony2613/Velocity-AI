@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+
 import axios from "axios";
 import FormData from "form-data";
 import sharp from "sharp";
@@ -28,14 +28,7 @@ async function tryExtractTextFromPdfParse(buf: Buffer): Promise<string> {
 // Serper.dev API for web research
 const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
 
-function getGroq() {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error("Groq API key not configured. Get free key at https://console.groq.com");
-  }
-  return new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-  });
-}
+
 
 async function serperSearch(query: string): Promise<string[]> {
   try {
@@ -307,7 +300,7 @@ export async function extractTextFromFile(fileData: string | Buffer, filename: s
 export async function generateSummary(
   text: string,
   language: string = "English",
-  preferredModel: string = "llama-3.3-70b-versatile"
+  preferredModel: string = "gemini-2.5-flash"
 ): Promise<{
   summary: string;
   keyPoints: string[];
@@ -315,7 +308,7 @@ export async function generateSummary(
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }> {
   try {
-    const maxTextLength = preferredModel.includes("gemini") ? 200000 : 100000;
+    const maxTextLength = 200000;
     const truncatedText = text.length > maxTextLength ? text.substring(0, maxTextLength) + "...[truncated]" : text;
     console.log(`Generating summary using ${preferredModel} for ${truncatedText.length} characters in ${language}`);
 
@@ -351,23 +344,9 @@ export async function generateSummary(
     let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
     const callGemini = async (model: string) => {
-      const m = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
+      const m = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-2.5-flash";
       const res = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], m);
       return { content: res.content, usage: res.usage };
-    };
-
-    const callGroq = async (model: string) => {
-      const groq = getGroq();
-      const res = await groq.chat.completions.create({
-        model: model as any || "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        temperature: 0.1,
-        max_tokens: 8192,
-      });
-      return { 
-        content: res.choices[0]?.message?.content || "", 
-        usage: { promptTokens: res.usage?.prompt_tokens || 0, completionTokens: res.usage?.completion_tokens || 0, totalTokens: res.usage?.total_tokens || 0 }
-      };
     };
 
     try {
@@ -376,7 +355,7 @@ export async function generateSummary(
         summaryText = res.content;
         totalUsage = res.usage;
       } else {
-        const res = await callGroq(preferredModel);
+        const res = await callGemini("gemini-2.5-flash");
         summaryText = res.content;
         totalUsage = res.usage;
       }
@@ -384,14 +363,14 @@ export async function generateSummary(
       console.warn(`[Summarize] Primary model '${preferredModel}' failed: ${primaryError.message}. Attempting fallback...`);
       
       try {
-        if (preferredModel.includes("gemini")) {
-          console.log(`[Summarize] Falling back from Gemini to Llama...`);
-          const res = await callGroq("llama-3.3-70b-versatile");
+        if (preferredModel === "gemini-pro" || preferredModel === "gemini-1.5-pro") {
+          console.log(`[Summarize] Falling back from Gemini Pro to Gemini Flash...`);
+          const res = await callGemini("gemini-2.5-flash");
           summaryText = res.content;
           totalUsage = res.usage;
         } else {
-          console.log(`[Summarize] Falling back from Llama to Gemini...`);
-          const res = await callGemini("gemini-1.5-flash");
+          console.log(`[Summarize] Falling back from Gemini Flash to Gemini Pro...`);
+          const res = await callGemini("gemini-1.5-pro");
           summaryText = res.content;
           totalUsage = res.usage;
         }
@@ -408,7 +387,7 @@ export async function generateSummary(
         };
         
         if (isRateLimit(primaryError) || isRateLimit(fallbackError)) {
-             throw new Error("__GROQ_RATE_LIMIT__: The AI service is temporarily busy. Please wait 1-2 minutes and try again.");
+             throw new Error("__GEMINI_RATE_LIMIT__: The AI service is temporarily busy. Please wait 1-2 minutes and try again.");
         }
         throw primaryError; 
       }
@@ -442,21 +421,12 @@ export async function generateSummary(
         const rSys = "Expert educational research assistant. Clear, detailed 3-4 sentence explanations.";
         const rUsr = `Explain: "${topic}".${context}`;
 
-        if (preferredModel.includes("gemini")) {
-          const m = preferredModel === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
-          const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], m);
-          topicExplanations[topic] = res.content.trim();
-          totalUsage.promptTokens += res.usage.promptTokens;
-          totalUsage.completionTokens += res.usage.completionTokens;
-          totalUsage.totalTokens += res.usage.totalTokens;
-        } else {
-          const groq = getGroq();
-          const res = await groq.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [{ role: "system", content: rSys }, { role: "user", content: rUsr }], temperature: 0.7, max_tokens: 200 });
-          topicExplanations[topic] = (res.choices[0].message.content || "").trim();
-          totalUsage.promptTokens += res.usage?.prompt_tokens || 0;
-          totalUsage.completionTokens += res.usage?.completion_tokens || 0;
-          totalUsage.totalTokens += res.usage?.total_tokens || 0;
-        }
+        const m = preferredModel === "gemini-pro" ? "gemini-1.5-pro" : "gemini-2.5-flash";
+        const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], m);
+        topicExplanations[topic] = res.content.trim();
+        totalUsage.promptTokens += res.usage.promptTokens;
+        totalUsage.completionTokens += res.usage.completionTokens;
+        totalUsage.totalTokens += res.usage.totalTokens;
       } catch (e) { console.warn(`Topic research failed: ${topic}`); }
     });
 
@@ -468,7 +438,7 @@ export async function generateSummary(
   }
 }
 
-export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "llama-3.3-70b-versatile") {
+export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "gemini-2.5-flash") {
   try {
     const extracted = await extractTextFromFile(fileData, filename);
     

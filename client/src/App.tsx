@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import FloatingCana from "./components/FloatingCana";
+import IosInstallPrompt from "./components/IosInstallPrompt";
+import GlobalStudyTimer from "./components/GlobalStudyTimer";
 
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
@@ -77,7 +79,9 @@ function App() {
         <AuthProvider>
           <LanguageProvider>
             <TooltipProvider>
+              <GlobalStudyTimer />
               <FloatingCana />
+              <IosInstallPrompt />
               <Toaster />
               <Router />
             </TooltipProvider>

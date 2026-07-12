@@ -58,11 +58,12 @@ export default function NoteCard({ title, subject, preview, date, id, audioData,
       if (!response.ok) throw new Error("Failed to generate quiz");
       return response.json();
     },
-    onSuccess: (data: { quiz: { id: string } }) => {
+    onSuccess: (data: { quiz: { id: string }, message?: string }) => {
       setIsGeneratingQuiz(false);
       toast({
-        title: "Quiz ready!",
-        description: "Your quiz has been generated. Click 'Take Quiz' to start.",
+        title: data.message ? "Partial Quiz Generated" : "Quiz ready!",
+        description: data.message || "Your quiz has been generated. Click 'Take Quiz' to start.",
+        variant: data.message ? "default" : "default",
       });
       setLocation(`/quiz/${data.quiz.id}`);
     },

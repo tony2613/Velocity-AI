@@ -12,9 +12,10 @@ import {
   type InsertQuiz,
   type Question,
   type InsertQuestion,
-  type QuizAttempt,
   type InsertQuizAttempt,
-  users, notes, summaries, quizzes, questions, quizAttempts, usageLogs, type InsertUsageLog
+  users, notes, summaries, quizzes, questions, quizAttempts, usageLogs, type InsertUsageLog,
+  userActiveSessions, session, type UserActiveSession,
+  canaChats, type InsertCanaChat, type CanaChat
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
@@ -31,6 +32,8 @@ export interface IStorage {
   incrementDailyUsage(userId: string): Promise<void>;
   resetDailySearch(userId: string): Promise<void>;
   incrementDailySearch(userId: string): Promise<void>;
+  resetMonthlySearch(userId: string): Promise<void>;
+  incrementMonthlySearch(userId: string): Promise<void>;
 
   createNote(note: InsertNote & { userId: string }): Promise<Note>;
   getNote(id: string): Promise<Note | undefined>;
@@ -56,6 +59,15 @@ export interface IStorage {
 
   createQuizAttempt(attempt: InsertQuizAttempt): Promise<QuizAttempt>;
   getQuizAttemptsByQuizId(quizId: string): Promise<QuizAttempt[]>;
+
+  createCanaChat(chat: InsertCanaChat): Promise<CanaChat>;
+  getCanaChatsByUserId(userId: string): Promise<CanaChat[]>;
+  getCanaChat(id: string): Promise<CanaChat | undefined>;
+  updateCanaChatMessages(id: string, messages: any[]): Promise<CanaChat>;
+
+  registerActiveSession(userId: string, deviceId: string, sessionId: string, userAgent: string | null): Promise<void>;
+  getActiveSessions(userId: string): Promise<UserActiveSession[]>;
+  deleteActiveSessionBySessionId(sessionId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -105,12 +117,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementDailyUsage(userId: string): Promise<void> {
-    // We need to fetch current count to increment safely or use sql operator if supported by driver
-    // Drizzle with PG supports sql increment
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return;
+    
+    const today = new Date();
+    let newStreak = user.streakCount || 0;
+    
+    if (user.lastUploadDate) {
+      const lastDate = new Date(user.lastUploadDate);
+      const isToday = today.getUTCDate() === lastDate.getUTCDate() &&
+                      today.getUTCMonth() === lastDate.getUTCMonth() &&
+                      today.getUTCFullYear() === lastDate.getUTCFullYear();
+                      
+      const yesterday = new Date(today);
+      yesterday.setUTCDate(today.getUTCDate() - 1);
+      
+      const isYesterday = yesterday.getUTCDate() === lastDate.getUTCDate() &&
+                          yesterday.getUTCMonth() === lastDate.getUTCMonth() &&
+                          yesterday.getUTCFullYear() === lastDate.getUTCFullYear();
+
+      if (isYesterday) {
+        newStreak += 1;
+      } else if (!isToday) {
+        newStreak = 1; // Reset streak if more than 1 day passed
+      }
+    } else {
+      newStreak = 1;
+    }
+
     await db.update(users)
       .set({
         dailyUploadCount: sql`${users.dailyUploadCount} + 1`,
-        lastUploadDate: new Date()
+        lastUploadDate: today,
+        streakCount: newStreak
       })
       .where(eq(users.id, userId));
   }
@@ -126,6 +165,21 @@ export class DatabaseStorage implements IStorage {
       .set({
         dailySearchCount: sql`${users.dailySearchCount} + 1`,
         lastSearchDate: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async resetMonthlySearch(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ monthlySearchCount: 0, lastMonthlySearchDate: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async incrementMonthlySearch(userId: string): Promise<void> {
+    await db.update(users)
+      .set({
+        monthlySearchCount: sql`${users.monthlySearchCount} + 1`,
+        lastMonthlySearchDate: new Date()
       })
       .where(eq(users.id, userId));
   }
@@ -251,6 +305,29 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(quizAttempts).where(eq(quizAttempts.quizId, quizId)).orderBy(quizAttempts.createdAt);
   }
 
+  async createCanaChat(chat: InsertCanaChat): Promise<CanaChat> {
+    const [newChat] = await db.insert(canaChats).values(chat).returning();
+    return newChat;
+  }
+
+  async getCanaChatsByUserId(userId: string): Promise<CanaChat[]> {
+    return await db.select().from(canaChats).where(eq(canaChats.userId, userId)).orderBy(sql`${canaChats.updatedAt} DESC`);
+  }
+
+  async getCanaChat(id: string): Promise<CanaChat | undefined> {
+    const [chat] = await db.select().from(canaChats).where(eq(canaChats.id, id));
+    return chat;
+  }
+
+  async updateCanaChatMessages(id: string, messages: any[]): Promise<CanaChat> {
+    const [updatedChat] = await db
+      .update(canaChats)
+      .set({ messages, updatedAt: new Date() })
+      .where(eq(canaChats.id, id))
+      .returning();
+    return updatedChat;
+  }
+
   async logUsage(log: InsertUsageLog): Promise<void> {
     try {
       await db.insert(usageLogs).values(log);
@@ -258,6 +335,54 @@ export class DatabaseStorage implements IStorage {
       console.error("Failed to log usage:", err);
       // Don't throw, just log error so main flow isn't interrupted
     }
+  }
+
+  async registerActiveSession(userId: string, deviceId: string, sessionId: string, userAgent: string | null): Promise<void> {
+    const existing = await db.select().from(userActiveSessions).where(
+      sql`${userActiveSessions.userId} = ${userId} AND ${userActiveSessions.deviceId} = ${deviceId}`
+    );
+    if (existing.length > 0) {
+      await db.update(userActiveSessions)
+        .set({ sessionId, userAgent, createdAt: new Date() })
+        .where(eq(userActiveSessions.id, existing[0].id));
+    } else {
+      await db.insert(userActiveSessions).values({
+        userId,
+        deviceId,
+        sessionId,
+        userAgent
+      });
+    }
+  }
+
+  async getActiveSessions(userId: string): Promise<UserActiveSession[]> {
+    const allSessions = await db.select().from(userActiveSessions).where(eq(userActiveSessions.userId, userId));
+    
+    if (allSessions.length === 0) return [];
+    
+    // Filter down to valid sessions in the session store
+    const validSids = await db.select({ sid: session.sid }).from(session).where(
+      sql`sid IN ${allSessions.map(s => s.sessionId)}`
+    );
+    
+    const validSidSet = new Set(validSids.map(s => s.sid));
+    const active = allSessions.filter(s => validSidSet.has(s.sessionId));
+    
+    const staleSessionIds = allSessions
+      .filter(s => !validSidSet.has(s.sessionId))
+      .map(s => s.sessionId);
+      
+    if (staleSessionIds.length > 0) {
+      db.delete(userActiveSessions)
+        .where(sql`session_id IN ${staleSessionIds}`)
+        .catch(err => console.error("Failed to clean up stale sessions:", err));
+    }
+    
+    return active;
+  }
+
+  async deleteActiveSessionBySessionId(sessionId: string): Promise<void> {
+    await db.delete(userActiveSessions).where(eq(userActiveSessions.sessionId, sessionId));
   }
 }
 

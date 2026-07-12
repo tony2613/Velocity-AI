@@ -226,7 +226,7 @@ export default function Settings() {
                                         </p>
                                     </div>
                                     <Select
-                                        value={localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile"}
+                                        value={localStorage.getItem("velocity_model") || "gemini-1.5-flash"}
                                         onValueChange={(value: any) => {
                                             localStorage.setItem("velocity_model", value);
                                             toast({ title: "Model Updated", description: `Default model set to ${value}` });
@@ -236,9 +236,9 @@ export default function Settings() {
                                             <SelectValue placeholder="Select Model" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 (Fast & Sharp)</SelectItem>
-                                            <SelectItem value="gemini-flash">Gemini 1.5 Flash (Balanced)</SelectItem>
-                                            <SelectItem value="gemini-pro">Gemini 1.5 Pro (Deep Reasoning)</SelectItem>
+                                            <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash ⚡ (Default)</SelectItem>
+                                            <SelectItem value="gemini-pro">Gemini 1.5 Pro 🧠 (Deep Reasoning)</SelectItem>
+                                            <SelectItem value="gemini-flash">Gemini Flash (Balanced)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

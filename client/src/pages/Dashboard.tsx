@@ -1,12 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
-import StatsCard from "@/components/StatsCard";
+
 import NoteCard from "@/components/NoteCard";
 import UploadZone from "@/components/UploadZone";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, CheckCircle, Flame, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { FileText, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,24 +23,7 @@ export default function Dashboard() {
     queryKey: ["/api/notes"],
   });
 
-  const { data: quizzes } = useQuery<Quiz[]>({
-    queryKey: ["/api/quizzes"],
-  });
 
-  const notesCount = notes?.length || 0;
-  const quizzesCount = quizzes?.length || 0;
-
-  // Simple Streak Logic
-  const getStreak = () => {
-    if (!user?.lastUploadDate) return "0 days";
-    const lastDate = new Date(user.lastUploadDate);
-    if (isToday(lastDate) || isYesterday(lastDate)) {
-      // For a real streak we'd need a history table, but we'll use a placeholder logic 
-      // or just "Active" if they uploaded recently.
-      return "Active"; 
-    }
-    return "0 days";
-  };
 
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -98,26 +81,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground">{t("dash.subtitle")}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatsCard
-            icon={FileText}
-            label={t("dash.notes_uploaded")}
-            value={notesCount}
-            trend={notesCount > 0 ? "Keep it up!" : "Upload your first note"}
-          />
-          <StatsCard
-            icon={CheckCircle}
-            label={t("dash.quizzes_available")}
-            value={quizzesCount}
-            trend={quizzesCount > 0 ? t("quizzes.take") : "Generate quizzes from notes"}
-          />
-          <StatsCard
-            icon={Flame}
-            label={t("dash.study_streak")}
-            value={getStreak()}
-            trend={getStreak() === "Active" ? "You're on fire!" : "Start your streak today!"}
-          />
-        </div>
+
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, Sparkles, ExternalLink } from "lucide-react";
+import { Menu, LogOut, User as UserIcon, Settings as SettingsIcon, Upload, Sparkles, ExternalLink, X, Flame } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,8 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { useLanguage } from "@/context/LanguageContext";
+import { PLAN_LIMITS } from "@shared/plans";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Navbar() {
   const { t } = useLanguage();
@@ -34,10 +36,16 @@ export default function Navbar() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const usageLimit = user?.subscriptionTier === 'elite' ? 200 : user?.subscriptionTier === 'pro' ? 50 : 5;
+  const tier = (user?.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
+  const usageLimit = PLAN_LIMITS[tier]?.uploadLimit ?? 5;
   const dailyUsage = user?.dailyUploadCount || 0;
   const isNearLimit = dailyUsage >= usageLimit - 1;
   const isAtLimit = dailyUsage >= usageLimit;
+
+  const { data: canaChats } = useQuery({
+    queryKey: ["/api/cana/chats"],
+    enabled: !!user
+  });
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -58,7 +66,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+    <nav className="fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[60] rounded-[1.5rem] glass-panel">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo & Desktop Nav */}
@@ -134,6 +142,13 @@ export default function Navbar() {
               {user ? (
                 <>
                   <div
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-500 text-xs font-medium mr-2 transition-all hover:scale-105"
+                    title={`${user.streakCount || 0} day study streak!`}
+                  >
+                    <Flame className="h-3 w-3" />
+                    <span>{user.streakCount || 0}</span>
+                  </div>
+                  <div
                     id="tut-credits"
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium mr-2 cursor-pointer transition-all hover:scale-105`}
                     style={{
@@ -153,45 +168,9 @@ export default function Navbar() {
                       <span className="hidden sm:inline">{t("nav.upload")}</span>
                     </Button>
                   </Link>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                        <Avatar className="h-10 w-10 border border-border">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.username}`} alt={user.username} />
-                          <AvatarFallback>{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="end" forceMount>
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium leading-none">{user.username}</p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {user.subscriptionTier === 'free' ? t("sub.free") :
-                              user.subscriptionTier === 'pro' ? t("sub.pro") : t("sub.elite")}
-                          </p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setLocation("/profile")}>
-                        <UserIcon className="mr-2 h-4 w-4" />
-                        <span>{t("nav.profile")}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLocation("/pricing")}>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        <span>{t("nav.upgrade")}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLocation("/settings")}>
-                        <SettingsIcon className="mr-2 h-4 w-4" />
-                        <span>{t("nav.settings")}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout} className="text-red-500">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>{t("nav.logout")}</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+                    <Menu className="h-5 w-5" />
+                  </Button>
                 </>
               ) : (
                 <div className="flex items-center gap-2">
@@ -201,6 +180,9 @@ export default function Navbar() {
                   <Link href="/auth">
                     <Button size="sm">{t("nav.signup")}</Button>
                   </Link>
+                  <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+                    <Menu className="h-5 w-5" />
+                  </Button>
                 </div>
               )}
             </div>
@@ -230,14 +212,23 @@ export default function Navbar() {
       </div>
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="right" className="w-[300px]">
-          <SheetHeader className="text-left mb-4">
-            <SheetTitle>Menu</SheetTitle>
-          </SheetHeader>
-          <div className="flex flex-col gap-2">
+        <SheetContent side="right" className="w-[300px] glass-panel border-l border-primary/10">
+          <div className="flex flex-col gap-2 mt-6">
             {user ? (
               <>
-                  <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-muted/30 border">
+                  <div className="flex items-center gap-3 px-2 py-2 mb-2">
+                    <Avatar className="h-10 w-10 border border-primary/20 shadow-sm">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.username}`} alt={user.username} />
+                      <AvatarFallback>{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold leading-tight">{user.username}</span>
+                      <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
+                        {user.subscriptionTier === 'free' ? t("sub.free") : user.subscriptionTier === 'pro' ? t("sub.pro") : t("sub.elite")} Plan
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-3 mb-2 rounded-lg bg-background/40 backdrop-blur-md border border-primary/10 shadow-sm">
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-semibold uppercase text-muted-foreground">Document Uploads</span>
                       <div className="w-36 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -258,6 +249,13 @@ export default function Navbar() {
                       {dailyUsage}/{usageLimit}
                     </div>
                   </div>
+                  <div className="flex items-center justify-between px-3 py-2 mb-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-500">
+                    <div className="flex items-center gap-2">
+                      <Flame className="h-4 w-4" />
+                      <span className="text-sm font-semibold">Study Streak</span>
+                    </div>
+                    <span className="text-sm font-bold">{user.streakCount || 0} days</span>
+                  </div>
                 <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.dashboard")}
                 </Link>
@@ -277,6 +275,29 @@ export default function Navbar() {
                 <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block flex items-center gap-2 text-primary">
                   <Sparkles className="h-4 w-4" /> {t("nav.upgrade")}
                 </Link>
+                
+                <div className="my-2 border-t" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground px-1 mb-1">CANA History</span>
+                  <div className="flex flex-col max-h-40 overflow-y-auto custom-scrollbar">
+                    {canaChats?.length ? canaChats.map((chat: any) => (
+                      <button 
+                        key={chat.id}
+                        className="text-left text-sm text-foreground/80 hover:bg-muted/50 hover:text-foreground px-2 py-1.5 rounded-md truncate transition-colors"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          window.dispatchEvent(new CustomEvent('open-cana-chat', { detail: { chatId: chat.id } }));
+                        }}
+                      >
+                        {chat.title}
+                      </button>
+                    )) : (
+                      <div className="text-xs text-muted-foreground px-2 italic">No past chats</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="my-2 border-t" />
                 <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium py-2 block">
                   {t("nav.settings")}
                 </Link>
@@ -303,7 +324,7 @@ export default function Navbar() {
       </Sheet>
 
       <Dialog open={showIOSInstallModal} onOpenChange={setShowIOSInstallModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md glass-panel-heavy">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">Install Velocity AI</DialogTitle>
             <DialogDescription className="sr-only">Instructions on how to install the app on iOS devices</DialogDescription>
@@ -334,7 +355,7 @@ export default function Navbar() {
       </Dialog>
 
       <Dialog open={showInAppBrowserModal} onOpenChange={setShowInAppBrowserModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md glass-panel-heavy">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">Open in System Browser</DialogTitle>
             <DialogDescription className="sr-only">Instructions to open the app in default browser to install</DialogDescription>
@@ -368,7 +389,7 @@ export default function Navbar() {
         </DialogContent>
       </Dialog>
 
-      <div className="absolute bottom-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent animate-gradient-x opacity-70"></div>
+
     </nav >
   );
 }

@@ -17,6 +17,16 @@ type AuthContextType = {
     registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
 };
 
+function getOrCreateDeviceId(): string {
+    let deviceId = localStorage.getItem("velocity_device_id");
+    if (!deviceId) {
+        // Generate a random stable client token
+        deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem("velocity_device_id", deviceId);
+    }
+    return deviceId;
+}
+
 type LoginData = Pick<InsertUser, "username" | "password">;
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -34,7 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const loginMutation = useMutation({
         mutationFn: async (credentials: LoginData) => {
-            const res = await apiRequest("POST", "/api/login", credentials);
+            const deviceId = getOrCreateDeviceId();
+            const res = await apiRequest("POST", "/api/login", { ...credentials, deviceId });
             return await res.json();
         },
         onSuccess: (user: SelectUser) => {
@@ -51,7 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const registerMutation = useMutation({
         mutationFn: async (credentials: InsertUser) => {
-            const res = await apiRequest("POST", "/api/register", credentials);
+            const deviceId = getOrCreateDeviceId();
+            const res = await apiRequest("POST", "/api/register", { ...credentials, deviceId });
             return await res.json();
         },
         onSuccess: (user: SelectUser) => {

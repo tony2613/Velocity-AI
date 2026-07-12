@@ -5,25 +5,43 @@ import remarkGfm from "remark-gfm";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Check } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Check, Share2, Download } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Note, Summary } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+// @ts-ignore
+import html2pdf from "html2pdf.js";
 
-function CopyButton({ getText }: { getText: () => string }) {
-  const [copied, setCopied] = useState(false);
+function ShareMenu({ 
+  getText, 
+  title, 
+  subject 
+}: { 
+  getText: () => string, 
+  title: string, 
+  subject: string 
+}) {
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = async () => {
     try {
       const text = getText();
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Copied!",
+        description: "Summary copied to clipboard.",
+      });
     } catch {
-      // Fallback for older browsers
       const text = getText();
       const textarea = document.createElement("textarea");
       textarea.value = text;
@@ -33,31 +51,155 @@ function CopyButton({ getText }: { getText: () => string }) {
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Copied!",
+        description: "Summary copied to clipboard.",
+      });
     }
-  }, [getText]);
+  };
+
+  const handleExportPDF = () => {
+    setIsExporting(true);
+    toast({
+      title: "Generating PDF",
+      description: "Please wait while we format your document...",
+    });
+    
+    // We need to render the markdown to HTML to print it cleanly.
+    const element = document.getElementById("summary-content-to-print");
+    if (!element) {
+      toast({
+        title: "Error",
+        description: "Could not find content to export.",
+        variant: "destructive"
+      });
+      setIsExporting(false);
+      return;
+    }
+
+    // Create a clone to manipulate for PDF (add title, etc)
+    const clone = element.cloneNode(true) as HTMLElement;
+    
+    const header = document.createElement("div");
+    header.innerHTML = `
+      <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 4px; font-family: sans-serif;">${title}</h1>
+      <p style="font-size: 14px; color: #666; margin-bottom: 24px; font-family: sans-serif;">Velocity AI Summary - ${subject}</p>
+    `;
+    clone.insertBefore(header, clone.firstChild);
+    
+    // Style adjustments for the clone to look good in PDF
+    clone.style.padding = "40px";
+    clone.style.color = "black";
+    clone.style.background = "white";
+    clone.style.fontFamily = "sans-serif";
+    
+    // Temp container
+    const container = document.createElement("div");
+    container.className = "pdf-export-container";
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    const opt = {
+      margin:       10,
+      filename:     `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_summary.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { 
+        scale: 2, 
+        useCORS: true,
+        onclone: (clonedDoc: Document) => {
+          // Remove dark mode class from the cloned document to ensure black text on white background
+          clonedDoc.documentElement.classList.remove("dark");
+          clonedDoc.body.classList.remove("dark");
+          
+          // Force light background and dark text on the cloned container inside the rendered iframe
+          const expContainer = clonedDoc.querySelector(".pdf-export-container") as HTMLElement;
+          if (expContainer) {
+            expContainer.style.color = "black";
+            expContainer.style.background = "white";
+            expContainer.style.padding = "40px";
+            expContainer.style.fontFamily = "sans-serif";
+          }
+        }
+      },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // Use a small timeout to let the browser process the DOM insertion and styling
+    setTimeout(() => {
+      html2pdf().set(opt).from(container).save().then(() => {
+        document.body.removeChild(container);
+        setIsExporting(false);
+        toast({
+          title: "Success",
+          description: "PDF downloaded successfully.",
+        });
+      }).catch((err: any) => {
+        if (document.body.contains(container)) {
+          document.body.removeChild(container);
+        }
+        setIsExporting(false);
+        console.error(err);
+        toast({
+          title: "Export Failed",
+          description: "There was a problem generating the PDF.",
+          variant: "destructive"
+        });
+      });
+    }, 150);
+  };
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Velocity AI Summary: ${title}`,
+          text: `Check out my summary for ${title} on Velocity AI!\n\n${getText().substring(0, 150)}...`,
+          url: window.location.href,
+        });
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          toast({
+            title: "Share Failed",
+            description: "Unable to share via your device.",
+            variant: "destructive"
+          });
+        }
+      }
+    } else {
+      // Fallback
+      handleCopy();
+    }
+  };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleCopy}
-      className="gap-1.5 text-xs transition-all"
-      data-testid="button-copy"
-    >
-      {copied ? (
-        <>
-          <Check className="h-3.5 w-3.5 text-green-500" />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy className="h-3.5 w-3.5" />
-          Copy
-        </>
-      )}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs transition-all" disabled={isExporting}>
+          <Share2 className="h-3.5 w-3.5" />
+          Share
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48 glass-panel border-primary/10">
+        <DropdownMenuItem onClick={handleCopy} className="cursor-pointer" disabled={isExporting}>
+          <Copy className="h-4 w-4 mr-2" />
+          Copy Text
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer" disabled={isExporting}>
+          {isExporting ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          {isExporting ? "Exporting..." : "Export as PDF"}
+        </DropdownMenuItem>
+        {!!navigator.share && (
+          <DropdownMenuItem onClick={handleNativeShare} className="cursor-pointer" disabled={isExporting}>
+            <Share2 className="h-4 w-4 mr-2" />
+            Share via Apps
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -79,7 +221,7 @@ export default function SummaryView() {
   const generateSummaryMutation = useMutation({
     mutationFn: async () => {
       const language = localStorage.getItem("velocity_language") || "English";
-      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
+      const preferredModel = localStorage.getItem("velocity_model") || "gemini-2.5-flash";
       
       const response = await fetch(`/api/notes/${id}/summary`, {
         method: "POST",
@@ -218,7 +360,9 @@ export default function SummaryView() {
             <p className="text-muted-foreground">{note.subject}</p>
           </div>
           {summary && !error && (
-            <CopyButton
+            <ShareMenu
+              title={note.title}
+              subject={note.subject}
               getText={() => {
                 if (activeTab === "full") return summary.content || "";
                 if (activeTab === "snapshot") return getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0] || "";
@@ -256,6 +400,8 @@ export default function SummaryView() {
                 </TabsTrigger>
               </TabsList>
             </div>
+
+            <div id="summary-content-to-print">
 
             <TabsContent value="full" className="mt-0">
               <Card className="border-none shadow-none bg-transparent">
@@ -339,6 +485,7 @@ export default function SummaryView() {
                 </CardContent>
               </Card>
             </TabsContent>
+            </div>
           </Tabs>
         ) : (
           !summaryLoading && (
@@ -374,6 +521,7 @@ export default function SummaryView() {
           )
         )}
       </main>
+
     </div>
   );
 }

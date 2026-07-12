@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { X, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
+import { PLAN_LIMITS } from "@shared/plans";
 
 interface Step {
   targetId: string;
@@ -14,7 +15,7 @@ const STEPS: Step[] = [
     title: "Monitor Your Limits",
     description: [
       "Track your daily document upload quota here.",
-      "Pro and Elite members enjoy up to 200 uploads per day.",
+      `Pro members get ${PLAN_LIMITS.pro.uploadLimit} daily uploads, and Elite members get ${PLAN_LIMITS.elite.uploadLimit} daily uploads.`,
       "Remember: Generating summaries and quizzes is always free!"
     ]
   },

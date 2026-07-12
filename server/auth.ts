@@ -8,6 +8,7 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { pool } from "./db";
 import { type User } from "@shared/schema";
+import { PLAN_LIMITS } from "../shared/plans";
 import { sendEmail, getWelcomeEmailHtml, getPasswordResetEmailHtml } from "./email";
 
 const scryptAsync = promisify(scrypt);
@@ -94,8 +95,15 @@ export function setupAuth(app: Express) {
                 password: hashedPassword,
             });
 
-            req.login(user, (err) => {
+            req.login(user, async (err) => {
                 if (err) return next(err);
+
+                try {
+                    const deviceId = req.body.deviceId || "unknown-device";
+                    await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
+                } catch (sessionErr) {
+                    console.error("Device registration error during registration:", sessionErr);
+                }
 
                 // Send welcome email asynchronously
                 if (user.email) {
@@ -175,8 +183,45 @@ export function setupAuth(app: Express) {
                 return res.status(401).json({ message: info?.message || "Invalid credentials" });
             }
 
-            req.login(user, (loginErr) => {
+            req.login(user, async (loginErr) => {
                 if (loginErr) return next(loginErr);
+                
+                try {
+                    const deviceId = req.body.deviceId || "unknown-device";
+                    const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
+                    const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
+                    const allowedLimit = planLimit !== undefined ? planLimit : 1;
+
+                    if (allowedLimit !== null) {
+                        // Get currently active sessions
+                        const activeSessions = await storage.getActiveSessions(user.id);
+                        const isDeviceAlreadyActive = activeSessions.some(s => s.deviceId === deviceId);
+
+                        if (!isDeviceAlreadyActive && activeSessions.length >= allowedLimit) {
+                            // We need to free up slots. Destroy the oldest session(s)
+                            const overflowCount = activeSessions.length - allowedLimit + 1;
+                            const sessionsToDestroy = activeSessions.slice(0, overflowCount);
+
+                            for (const s of sessionsToDestroy) {
+                                await storage.deleteActiveSessionBySessionId(s.sessionId);
+                                // Safely call sessionStore.destroy
+                                if (req.sessionStore && typeof req.sessionStore.destroy === 'function') {
+                                    req.sessionStore.destroy(s.sessionId, (destroyErr) => {
+                                        if (destroyErr) {
+                                            console.error(`Failed to destroy session ${s.sessionId}:`, destroyErr);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Register this new session
+                    await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
+                } catch (sessionErr) {
+                    console.error("Device limit enforcement error during login:", sessionErr);
+                }
+
                 // Log Login
                 storage.logUsage({
                     userId: user.id,
@@ -191,7 +236,15 @@ export function setupAuth(app: Express) {
         })(req, res, next);
     });
 
-    app.post("/api/logout", (req, res, next) => {
+    app.post("/api/logout", async (req, res, next) => {
+        const sessionId = req.sessionID;
+        if (sessionId) {
+            try {
+                await storage.deleteActiveSessionBySessionId(sessionId);
+            } catch (err) {
+                console.error("Failed to delete session mapping on logout:", err);
+            }
+        }
         req.logout((err) => {
             if (err) return next(err);
             res.sendStatus(200);

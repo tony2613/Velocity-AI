@@ -4,29 +4,53 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Loader2, Sparkles, BrainCircuit, ArrowRight, X } from "lucide-react";
+import { Search, Loader2, Sparkles, BrainCircuit, ArrowRight, X, MessageSquare, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { PLAN_LIMITS } from "@shared/plans";
+import { useLocation } from "wouter";
 
-interface AIResult {
-  provider: string;
+interface ChatMessage {
+  role: "user" | "assistant";
   content: string;
-  error?: string;
+}
+
+interface CanaChat {
+  id: string;
+  userId: string;
+  title: string;
+  messages: ChatMessage[];
 }
 
 export default function FloatingCana() {
+  const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"chat" | "topics">("chat");
+  const [activeChat, setActiveChat] = useState<CanaChat | null>(null);
+  
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const researchMutation = useMutation({
+  // Route Denylist - completely unmount CANA on these routes
+  if (location.startsWith("/auth") || location.startsWith("/quiz/")) {
+    return null;
+  }
+
+  const chatMutation = useMutation({
     mutationFn: async (searchQuery: string) => {
-      const res = await apiRequest("POST", "/api/research", { query: searchQuery });
+      const res = await apiRequest("POST", "/api/cana/chat", { 
+        query: searchQuery, 
+        mode,
+        chatId: activeChat?.id 
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to research");
-      return data.results as AIResult[];
+      if (!res.ok) throw new Error(data.error || "Failed to chat");
+      return data;
     },
     onError: (error: Error) => {
       toast({
@@ -35,15 +59,42 @@ export default function FloatingCana() {
         variant: "destructive",
       });
     },
+    onSuccess: (data) => {
+      setActiveChat(data.chat);
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cana/chats"] });
+    },
   });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    researchMutation.mutate(query);
+    
+    // Optimistically add user message
+    if (activeChat) {
+      setActiveChat({
+        ...activeChat,
+        messages: [...activeChat.messages, { role: "user", content: query }]
+      });
+    } else {
+      setActiveChat({
+        id: "",
+        userId: user?.id || "",
+        title: "New Chat",
+        messages: [{ role: "user", content: query }]
+      });
+    }
+
+    chatMutation.mutate(query);
+    setQuery("");
   };
 
-  const result = researchMutation.data?.[0];
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [activeChat?.messages, chatMutation.isPending]);
 
   // Focus input automatically when opened
   useEffect(() => {
@@ -57,7 +108,8 @@ export default function FloatingCana() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setIsOpen((prev) => !prev);
+        setIsOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 50);
       }
       if (e.key === "Escape" && isOpen) {
         setIsOpen(false);
@@ -67,16 +119,17 @@ export default function FloatingCana() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // Read URL query parameter in case they were redirected here previously
+  // Expose a global way to open a specific chat ID (useful for the Navbar history)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const canaQuery = params.get("cana");
-    if (canaQuery) {
-      setQuery(decodeURIComponent(canaQuery));
+    const handleOpenChat = (e: CustomEvent<{chatId: string}>) => {
       setIsOpen(true);
-      researchMutation.mutate(decodeURIComponent(canaQuery));
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+      fetch(`/api/cana/chats/${e.detail.chatId}`)
+        .then(res => res.json())
+        .then(chat => setActiveChat(chat))
+        .catch(console.error);
+    };
+    window.addEventListener('open-cana-chat', handleOpenChat as EventListener);
+    return () => window.removeEventListener('open-cana-chat', handleOpenChat as EventListener);
   }, []);
 
   return (
@@ -89,62 +142,74 @@ export default function FloatingCana() {
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Main Floating Component */}
+      {/* Main Floating Component Anchored Bottom */}
       <div 
         id="tut-cana"
-        className={`fixed z-[101] left-1/2 -translate-x-1/2 transition-all duration-700 ease-out max-h-[85dvh] overflow-hidden flex flex-col w-[90%] ${
+        className={`fixed z-[101] left-1/2 -translate-x-1/2 transition-all duration-500 ease-out flex flex-col-reverse w-[90%] bottom-4 ${
           isOpen 
-            ? "top-[12dvh] sm:top-[15dvh] max-w-3xl scale-100" 
-            : "top-[calc(100dvh-4.5rem)] max-w-md cursor-pointer hover:scale-105"
+            ? "max-w-3xl scale-100" 
+            : "max-w-md cursor-pointer hover:scale-105"
         }`}
       >
         {/* Search Input Container */}
         <div 
           onClick={() => !isOpen && setIsOpen(true)}
-          className={`relative bg-background/60 backdrop-blur-xl border flex items-center shadow-2xl transition-all duration-500 ${
+          className={`relative glass-panel border flex flex-col shadow-2xl transition-all duration-500 z-20 ${
             isOpen 
-              ? "rounded-2xl border-primary/40 shadow-primary/20 ring-1 ring-primary/20 p-2" 
-              : "rounded-full border-primary/20 p-1.5"
+              ? "rounded-2xl border-primary/40 shadow-primary/20 ring-1 ring-primary/20 p-3" 
+              : "rounded-full border-primary/20 p-1.5 flex-row items-center"
           }`}
         >
+          {isOpen && (
+            <div className="flex items-center justify-between mb-3 px-2">
+              <div className="flex bg-muted/50 p-1 rounded-lg">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMode("chat"); }}
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-2 rounded-md transition-all ${mode === "chat" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" /> Conversational Chat
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMode("topics"); }}
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-2 rounded-md transition-all ${mode === "topics" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> Search My Notes
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {user && user.subscriptionTier === 'elite' && (
+                  <div className="text-[10px] font-medium text-muted-foreground bg-background px-2 py-0.5 rounded border">
+                    {Math.max(0, PLAN_LIMITS.elite.searchLimit - (user.monthlySearchCount || 0))} / {PLAN_LIMITS.elite.searchLimit} queries
+                  </div>
+                )}
+                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isOpen ? (
-            <form onSubmit={handleSearch} className="flex gap-2 w-full">
-              <div className="flex items-center pl-4">
+            <form onSubmit={handleSearch} className="flex gap-2 w-full items-center">
+              <div className="flex items-center pl-2">
                 <BrainCircuit className="h-6 w-6 text-primary animate-pulse" />
               </div>
               <Input
                 ref={inputRef}
-                placeholder="Ask CANA... It searches all your notes."
+                placeholder={mode === "chat" ? "Ask CANA anything..." : "Search your notes for a specific topic..."}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="flex-1 border-0 bg-transparent text-lg focus-visible:ring-0 px-2 py-6 text-foreground placeholder:text-muted-foreground/70"
-                disabled={researchMutation.isPending}
+                className="flex-1 border-0 bg-transparent text-base sm:text-lg focus-visible:ring-0 px-2 py-6 text-foreground placeholder:text-muted-foreground/70"
+                disabled={chatMutation.isPending}
               />
-              {query && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setQuery("");
-                    inputRef.current?.focus();
-                  }}
-                  className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground rounded-full mr-1"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              )}
               <Button 
                 type="submit" 
                 size="icon"
-                disabled={researchMutation.isPending || !query.trim()}
+                disabled={chatMutation.isPending || !query.trim()}
                 className="h-12 w-12 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
               >
-                {researchMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-5 w-5" />
-                )}
+                {chatMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
               </Button>
             </form>
           ) : (
@@ -152,71 +217,52 @@ export default function FloatingCana() {
             <div className="flex items-center px-4 py-2 w-full gap-3 text-muted-foreground">
               <Search className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium">Ask CANA...</span>
-              <div className="ml-auto hidden sm:flex items-center gap-1 opacity-60">
-                <kbd className="bg-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-mono border">⌘</kbd>
-                <kbd className="bg-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-mono border">K</kbd>
-              </div>
             </div>
           )}
         </div>
 
-        {/* Results Container (Only shows when Open) */}
-        {isOpen && result && (
-          <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500 flex-1 overflow-y-auto custom-scrollbar">
-            <Card className="border-primary/20 bg-background/90 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+        {/* Chat History Container (Grows upward) */}
+        {isOpen && activeChat?.messages && activeChat.messages.length > 0 && (
+          <div className="mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500 z-10">
+            <Card className="glass-panel-heavy border-primary/20 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 z-0"></div>
               
-              <CardHeader className="py-4 border-b bg-primary/5 relative z-10 sticky top-0 backdrop-blur-xl">
-                <CardTitle className="text-sm font-bold flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Sparkles className="w-4 h-4" />
-                    CANA AI Results
+              <CardContent ref={scrollRef} className="p-6 relative z-10 max-h-[60vh] overflow-y-auto custom-scrollbar flex flex-col gap-4">
+                {activeChat.messages.map((msg, i) => (
+                  <div key={i} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                      msg.role === 'user' 
+                        ? 'bg-primary text-primary-foreground rounded-tr-sm' 
+                        : 'bg-muted border rounded-tl-sm'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        <p className="text-sm">{msg.content}</p>
+                      ) : (
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                              a: ({children, href}) => <a href={href} className="text-primary font-medium hover:underline">{children}</a>,
+                              code: ({ inline, children }: any) => inline 
+                                ? <code className="bg-primary/10 text-primary px-1 rounded text-xs font-mono">{children}</code>
+                                : <pre className="bg-[#1e1e1e] text-gray-300 p-3 rounded-lg overflow-x-auto text-xs font-mono my-3">{children}</pre>
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold px-2 py-1 bg-background rounded-full border text-muted-foreground">
-                    Using Context: My Notes
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              
-              <CardContent className="p-6 relative z-10">
-                {result.error ? (
-                  <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm font-medium">
-                    {result.error}
-                  </div>
-                ) : (
-                  <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none text-foreground/90 pb-8">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-lg font-bold mt-4 mb-2 text-foreground/90">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-base font-bold mt-3 mb-1 text-foreground/85">{children}</h3>,
-                        strong: ({ children }) => <strong className="font-extrabold text-primary">{children}</strong>,
-                        ul: ({ children }) => <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>,
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-4 rounded-lg border bg-background">
-                            <table className="w-full text-sm text-left">{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead className="bg-muted/50 border-b">{children}</thead>,
-                        tbody: ({ children }) => <tbody>{children}</tbody>,
-                        tr: ({ children }) => <tr className="border-b last:border-0">{children}</tr>,
-                        th: ({ children }) => <th className="px-3 py-2 font-semibold border-r last:border-0">{children}</th>,
-                        td: ({ children }) => <td className="px-3 py-2 border-r last:border-0">{children}</td>,
-                        code: ({ inline, children }: any) =>
-                          inline ? (
-                            <code className="bg-primary/10 text-primary px-1 rounded text-xs font-mono">{children}</code>
-                          ) : (
-                            <pre className="bg-[#1e1e1e] text-gray-300 p-3 rounded-lg overflow-x-auto text-xs font-mono my-3">{children}</pre>
-                          ),
-                        blockquote: ({ children }) => (
-                          <blockquote className="border-l-2 border-primary/50 pl-3 italic text-foreground/70 my-2">{children}</blockquote>
-                        ),
-                      }}
-                    >
-                      {result.content}
-                    </ReactMarkdown>
+                ))}
+                
+                {chatMutation.isPending && (
+                  <div className="flex w-full justify-start">
+                    <div className="max-w-[85%] bg-muted border rounded-2xl rounded-tl-sm px-4 py-3 flex gap-2 items-center text-muted-foreground">
+                      <Sparkles className="h-4 w-4 animate-pulse text-primary" />
+                      <span className="text-sm">CANA is thinking...</span>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Loader2, Sparkles, BrainCircuit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { PLAN_LIMITS } from "@shared/plans";
 
 interface AIResult {
   provider: string;
@@ -19,6 +21,7 @@ interface AIResult {
 export default function ResearchBox() {
   const [query, setQuery] = useState("");
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const researchMutation = useMutation({
     mutationFn: async (searchQuery: string) => {
@@ -33,6 +36,9 @@ export default function ResearchBox() {
         description: error.message,
         variant: "destructive",
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
     },
   });
 
@@ -57,9 +63,21 @@ export default function ResearchBox() {
 
   return (
     <div className="w-full space-y-4 mb-8">
-      <div className="flex items-center gap-2 mb-2 px-1">
-        <BrainCircuit className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-semibold opacity-90">CANA</h2>
+      <div className="flex items-center justify-between mb-2 px-1">
+        <div className="flex items-center gap-2">
+          <BrainCircuit className="h-6 w-6 text-primary" />
+          <h2 className="text-xl font-semibold opacity-90">CANA</h2>
+        </div>
+        {user && user.subscriptionTier === 'elite' && (
+          <div className="text-xs font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full border">
+            {Math.max(0, PLAN_LIMITS.elite.searchLimit - (user.monthlySearchCount || 0))} / {PLAN_LIMITS.elite.searchLimit} uses remaining this month
+          </div>
+        )}
+        {user && user.subscriptionTier === 'pro' && (
+          <div className="text-xs font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full border">
+            {Math.max(0, PLAN_LIMITS.pro.searchLimit - (user.dailySearchCount || 0))} / {PLAN_LIMITS.pro.searchLimit} uses remaining today
+          </div>
+        )}
       </div>
       <form onSubmit={handleSearch} className="flex gap-3">
         <Input

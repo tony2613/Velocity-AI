@@ -1,4 +1,5 @@
 import { storage } from "./storage";
+import { PLAN_LIMITS } from "../shared/plans";
 
 export const isAuthenticated = (req: any, res: any, next: any) => {
     if (req.isAuthenticated()) {
@@ -53,14 +54,8 @@ export const checkUsageLimit = async (req: any, res: any, next: any) => {
             req.user.dailyUploadCount = 0;
         }
 
-        // Define limits based on tier
-        const limits: Record<string, number> = {
-            'free': 5,
-            'pro': 50,
-            'elite': 200
-        };
-
-        const limit = limits[tier] || 5;
+        // Define limits based on tier from shared config
+        const limit = PLAN_LIMITS[tier as 'free' | 'pro' | 'elite']?.uploadLimit ?? 5;
 
         if (user.dailyUploadCount >= limit) {
             return res.status(429).json({
@@ -98,16 +93,22 @@ export const checkSearchLimit = async (req: any, res: any, next: any) => {
         if (isNewDay) {
             await storage.resetDailySearch(user.id);
             req.user.dailySearchCount = 0;
+            user.dailySearchCount = 0;
         }
 
-        // Define search limits
-        const searchLimits: Record<string, number> = {
-            'free': 0,
-            'pro': 10,
-            'elite': 100
-        };
+        // Check if it's a new month (UTC)
+        const lastMonthlySearch = user.lastMonthlySearchDate ? new Date(user.lastMonthlySearchDate) : new Date(0);
+        const isNewMonth = today.getUTCMonth() !== lastMonthlySearch.getUTCMonth() ||
+            today.getUTCFullYear() !== lastMonthlySearch.getUTCFullYear();
 
-        const limit = searchLimits[tier] || 0;
+        if (isNewMonth) {
+            await storage.resetMonthlySearch(user.id);
+            req.user.monthlySearchCount = 0;
+            user.monthlySearchCount = 0;
+        }
+
+        // Define search limits from shared config
+        const limit = PLAN_LIMITS[tier as 'free' | 'pro' | 'elite']?.searchLimit ?? 0;
 
         if (limit === 0) {
             return res.status(403).json({
@@ -116,12 +117,22 @@ export const checkSearchLimit = async (req: any, res: any, next: any) => {
             });
         }
 
-        if (user.dailySearchCount >= limit) {
-            return res.status(429).json({
-                error: `Daily search limit reached for ${tier} plan. Upgrade to Elite for more.`,
-                limit,
-                tier
-            });
+        if (tier === 'elite') {
+            if (user.monthlySearchCount >= limit) {
+                return res.status(429).json({
+                    error: `Monthly research limit (${limit}) reached for Elite plan.`,
+                    limit,
+                    tier
+                });
+            }
+        } else {
+            if (user.dailySearchCount >= limit) {
+                return res.status(429).json({
+                    error: `Daily search limit reached for ${tier} plan. Upgrade to Elite for more.`,
+                    limit,
+                    tier
+                });
+            }
         }
 
         next();

@@ -82,7 +82,7 @@ export default function UploadZone() {
 
   const processImageMutation = useMutation({
     mutationFn: async (data: { imageData?: string; imageDataList?: string[]; title: string; subject: string; isPDF?: boolean; isPPT?: boolean; language?: string }) => {
-      const preferredModel = localStorage.getItem("velocity_model") || "llama-3.3-70b-versatile";
+      const preferredModel = localStorage.getItem("velocity_model") || "gemini-1.5-flash";
       const response = await fetch("/api/process-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

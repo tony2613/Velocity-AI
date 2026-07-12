@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -19,6 +19,9 @@ export const users = pgTable("users", {
   lastUploadDate: timestamp("last_upload_date").defaultNow(),
   dailySearchCount: integer("daily_search_count").notNull().default(0),
   lastSearchDate: timestamp("last_search_date").defaultNow(),
+  monthlySearchCount: integer("monthly_search_count").notNull().default(0),
+  lastMonthlySearchDate: timestamp("last_monthly_search_date").defaultNow(),
+  streakCount: integer("streak_count").notNull().default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -140,6 +143,24 @@ export type UsageLog = typeof usageLogs.$inferSelect;
 
 import { serial } from "drizzle-orm/pg-core";
 
+export const canaChats = pgTable("cana_chats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  messages: jsonb("messages").notNull().default('[]'),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertCanaChatSchema = createInsertSchema(canaChats).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCanaChat = z.infer<typeof insertCanaChatSchema>;
+export type CanaChat = typeof canaChats.$inferSelect;
+
 export const paymentRequests = pgTable("payment_requests", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
@@ -171,3 +192,19 @@ export const insertResearchSchema = z.object({
 });
 export type InsertResearch = z.infer<typeof insertResearchSchema>;
 
+export const userActiveSessions = pgTable("user_active_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  deviceId: varchar("device_id").notNull(),
+  sessionId: varchar("session_id").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertUserActiveSessionSchema = createInsertSchema(userActiveSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertUserActiveSession = z.infer<typeof insertUserActiveSessionSchema>;
+export type UserActiveSession = typeof userActiveSessions.$inferSelect;

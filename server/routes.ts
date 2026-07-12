@@ -5,20 +5,11 @@ import { eq } from "drizzle-orm";
 import { insertNoteSchema, paymentRequests, insertResearchSchema } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
 import multer from "multer";
-import Groq from "groq-sdk";
+
 import { geminiChat } from "./gemini";
 import { setupAuth } from "./auth";
 import { isAuthenticated, isAdmin, checkUsageLimit, checkSearchLimit } from "./middleware";
 import { sendEmail } from "./email";
-
-function getGroq() {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error("Groq API key not configured. Get a free key at https://console.groq.com");
-  }
-  return new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-  });
-}
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -169,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tokensInput: usage?.promptTokens || 0,
         tokensOutput: usage?.completionTokens || 0,
         cost: 0,
-        model: req.body.preferredModel || "llama-3.3-70b-versatile",
+        model: req.body.preferredModel || "gemini-2.5-flash",
         metadata: JSON.stringify({ filename, fileSize: req.file.size }),
       });
 
@@ -328,6 +319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Increment search usage
             const userId = (req.user as any).id;
             await storage.incrementDailySearch(userId);
+            await storage.incrementMonthlySearch(userId);
 
             const results = response.data.organic.map((item: any) => ({
               title: item.title,
@@ -341,12 +333,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Fallback: Use Groq to research the question with multiple perspectives
-      const groq = getGroq();
-
-      const researchCompletion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
+      // Fallback: Use Gemini to research the question with multiple perspectives
+      const researchResult = await geminiChat([
           {
             role: "system",
             content: `You are an expert educational researcher. 
@@ -362,12 +350,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: "user",
             content: `Research this topic in depth: "${question}"`
           },
-        ],
-        temperature: 0.5,
-        response_format: { type: "json_object" }
-      });
+        ], "gemini-2.5-flash");
 
-      const researchContent = researchCompletion.choices[0].message.content;
+      const researchContent = researchResult.content;
       if (!researchContent) {
         throw new Error("No response from AI researcher");
       }
@@ -427,78 +412,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Multi-AI Research Endpoint (Now CANA - Context-Aware Notes Assistant)
-  app.post("/api/research", isAuthenticated, checkSearchLimit, async (req, res) => {
+  // --- CANA Chat & History Endpoints ---
+  app.get("/api/cana/chats", isAuthenticated, async (req, res) => {
     try {
-      const { query } = insertResearchSchema.parse(req.body);
+      const chats = await storage.getCanaChatsByUserId((req.user as any).id);
+      res.json(chats);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/cana/chats/:id", isAuthenticated, async (req, res) => {
+    try {
+      const chat = await storage.getCanaChat(req.params.id);
+      if (!chat || chat.userId !== (req.user as any).id) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+      res.json(chat);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/cana/chat", isAuthenticated, checkSearchLimit, async (req, res) => {
+    try {
+      const { query, mode, chatId } = req.body;
       const userId = (req.user as any).id;
       
+      let chat;
+      if (chatId) {
+        chat = await storage.getCanaChat(chatId);
+        if (!chat || chat.userId !== userId) return res.status(404).json({ error: "Chat not found" });
+      } else {
+        chat = await storage.createCanaChat({
+          userId,
+          title: query.substring(0, 50) + (query.length > 50 ? "..." : "")
+        });
+      }
+
       // Fetch user's notes for context
       const notes = await storage.getAllNotes(userId);
-      
       let contextStr = "";
       if (notes && notes.length > 0) {
-        // Collect notes, truncating content to keep context window safe (approx 15,000 chars total)
         const combined = notes.map(n => `Title: ${n.title}\nContent: ${n.content.substring(0, 3000)}`).join("\n\n---\n\n");
         contextStr = `\n\nUSER'S NOTES FOR CONTEXT:\n${combined.substring(0, 15000)}`;
       }
-
-      let aiResponse = "";
-      let tokensInput = 0;
-      let tokensOutput = 0;
-      let usedModel = "llama-3.3-70b-versatile";
       
-      const systemMsg = "You are 'CANA' (Context-Aware Notes Assistant), an expert study tool built into VelocityAI. Your goal is to answer the user's research query accurately and concisely. If the user has saved notes that are relevant to their query, use them immediately to provide a highly personalized answer. If the notes are not relevant or if they don't have notes, use your general knowledge." + contextStr;
-
-      try {
-        const groq = getGroq();
-        const completion = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemMsg },
-            { role: "user", content: query }
-          ],
-          temperature: 0.5,
-          max_tokens: 1500,
-        });
-        aiResponse = completion.choices[0]?.message?.content || "No response generated.";
-        tokensInput = completion.usage?.prompt_tokens || 0;
-        tokensOutput = completion.usage?.completion_tokens || 0;
-      } catch (err: any) {
-        console.warn("Groq failed for Research, falling back to Gemini:", err.message);
-        const res = await geminiChat([{ role: "system", content: systemMsg }, { role: "user", content: query }], "gemini-1.5-flash");
-        aiResponse = res.content;
-        tokensInput = res.usage.promptTokens;
-        tokensOutput = res.usage.completionTokens;
-        usedModel = "gemini-1.5-flash";
+      let systemMsg = "";
+      if (mode === "topics") {
+        systemMsg = "You are 'CANA'. The user is searching for specific topics within their notes. Act as a conversational assistant: analyze their query, find exact matching concepts in their notes provided below, explicitly cite which note it came from, and summarize the findings. ALWAYS end your response by naturally asking if they want a deeper detailed explanation or if they want to explore something else." + contextStr;
+      } else {
+        systemMsg = "You are 'CANA' (Context-Aware Notes Assistant), a conversational study partner. Answer their queries naturally. If relevant to their notes below, use them. If not, just chat naturally." + contextStr;
       }
 
-      // Format as a single result mapped over seamlessly by the frontend
-      const results = [{
-        provider: 'CANA (VelocityAI Assistant)',
-        content: aiResponse
-      }];
+      const pastMessages = (chat.messages || []) as Array<{role: string, content: string}>;
+      const newHistory = [...pastMessages, { role: "user", content: query }];
       
-      // Increment search usage
+      const promptMessages = [
+        { role: "system", content: systemMsg },
+        ...newHistory
+      ];
+
+      const resAi = await geminiChat(promptMessages, "gemini-2.5-flash");
+      
+      const finalHistory = [...newHistory, { role: "assistant", content: resAi.content }];
+      await storage.updateCanaChatMessages(chat.id, finalHistory);
+
       await storage.incrementDailySearch(userId);
+      await storage.incrementMonthlySearch(userId);
       
-      // Log usage
-      storage.logUsage({
-        userId,
-        action: "CANA_RESEARCH",
-        tokensInput,
-        tokensOutput,
-        cost: 0,
-        model: usedModel,
-        metadata: JSON.stringify({ query: query.substring(0, 100), contextNotesFound: notes.length }),
-      });
-      
-      res.json({ success: true, results });
+      res.json({ success: true, chat: { ...chat, messages: finalHistory }, newResponse: resAi.content });
     } catch (error: any) {
-      console.error("CANA Research error:", error);
-      res.status(500).json({ error: error.message || "Failed to complete research" });
+      console.error("CANA Chat error:", error);
+      res.status(500).json({ error: error.message || "Failed to complete chat" });
     }
   });
+
+  const QUIZ_QUESTION_COUNT = 10;
 
   // Generate quiz for a note
   app.post("/api/notes/:id/quiz", isAuthenticated, async (req, res) => {
@@ -547,34 +537,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentType = questionTypes[(quizNumber - 1) % questionTypes.length];
       
       const sysMsg = "You are a study assistant. Output ONLY valid JSON. Do not include markdown formatting or code blocks. Your response must be parseable JSON starting with {\"questions\": [ and ending with }]}.";
-      const usrMsg = `Create exactly 5 NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`;
+      const usrMsg = `Create exactly ${QUIZ_QUESTION_COUNT} NEW multiple-choice quiz questions from this text. Focus on ${currentType} questions to ensure comprehensive topic coverage.\n\nText:\n${truncatedContent}${previousTopics}\n\nReturn ONLY this JSON format (no markdown, no explanation):\n{\"questions\": [{\"question\": \"Q?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctAnswer\": 0, \"explanation\": \"Why\"}]}`;
 
       let responseText = "{}";
       let tokensInput = 0;
       let tokensOutput = 0;
-      let usedModel = "llama-3.3-70b-versatile";
+      let usedModel = "gemini-2.5-flash";
 
       try {
-        const groq = getGroq();
-        const completion = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: sysMsg },
-            { role: "user", content: usrMsg }
-          ],
-          temperature: 0.7,
-          max_tokens: 1500,
-        });
-        responseText = completion.choices[0].message.content || "{}";
-        tokensInput = completion.usage?.prompt_tokens || 0;
-        tokensOutput = completion.usage?.completion_tokens || 0;
-      } catch (err: any) {
-        console.warn("Groq failed for Quiz, falling back to Gemini:", err.message);
-        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-1.5-flash");
+        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-2.5-flash");
         responseText = res.content;
         tokensInput = res.usage.promptTokens;
         tokensOutput = res.usage.completionTokens;
-        usedModel = "gemini-1.5-flash";
+      } catch (err: any) {
+        console.warn("Gemini failed for Quiz generation:", err.message);
+        throw err;
       }
 
       // Log Usage
@@ -613,6 +590,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("AI did not generate valid quiz questions. Try again.");
       }
 
+      let generatedMessage = undefined;
+      
+      // Handle the exact count requirement or fallback if content is sparse
+      if (quizData.questions.length > QUIZ_QUESTION_COUNT) {
+        quizData.questions = quizData.questions.slice(0, QUIZ_QUESTION_COUNT);
+      } else if (quizData.questions.length < QUIZ_QUESTION_COUNT) {
+        generatedMessage = `We could only generate ${quizData.questions.length} questions from the provided content because it wasn't long enough for a full ${QUIZ_QUESTION_COUNT}-question quiz.`;
+      }
+
       // Validate each question
       for (const q of quizData.questions) {
         if (!q.question || !Array.isArray(q.options) || q.options.length < 4 || typeof q.correctAnswer !== "number") {
@@ -639,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
       );
 
-      res.json({ quiz, questions });
+      res.json({ quiz, questions, message: generatedMessage });
     } catch (error: any) {
       console.error("Quiz generation error:", error);
       res.status(500).json({ error: error.message || "Failed to generate quiz" });
