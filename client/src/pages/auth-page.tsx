@@ -29,12 +29,16 @@ export default function AuthPage() {
 
     useEffect(() => {
         if (user) {
-            setLocation("/dashboard");
+            const params = new URLSearchParams(window.location.search);
+            const redirect = params.get("redirect");
+            setLocation(redirect ? decodeURIComponent(redirect) : "/dashboard");
         }
     }, [user, setLocation]);
 
     if (user) {
-        return <Redirect to="/dashboard" />;
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get("redirect");
+        return <Redirect to={redirect ? decodeURIComponent(redirect) : "/dashboard"} />;
     }
 
     return (

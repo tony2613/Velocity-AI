@@ -23,7 +23,7 @@ export function ProtectedRoute({
                 }
 
                 if (!user) {
-                    return <Redirect to="/auth" />;
+                    return <Redirect to={`/auth?redirect=${encodeURIComponent(window.location.pathname)}`} />;
                 }
 
                 return <Component {...params} />;

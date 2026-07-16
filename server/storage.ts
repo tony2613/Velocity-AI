@@ -1,6 +1,3 @@
-
-
-
 import {
   type User,
   type InsertUser,
@@ -12,6 +9,7 @@ import {
   type InsertQuiz,
   type Question,
   type InsertQuestion,
+  type QuizAttempt,
   type InsertQuizAttempt,
   users, notes, summaries, quizzes, questions, quizAttempts, usageLogs, type InsertUsageLog,
   userActiveSessions, session, type UserActiveSession,

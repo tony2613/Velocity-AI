@@ -1,10 +1,10 @@
-import Navbar from "@/components/Navbar";
+import AppLayout from "@/components/AppLayout";
 import UploadZone from "@/components/UploadZone";
+import Footer from "@/components/Footer";
 
 export default function UploadNotesPage() {
   return (
-    <div className="min-h-screen">
-      <Navbar />
+    <AppLayout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="space-y-8">
           <div>
@@ -25,6 +25,7 @@ export default function UploadNotesPage() {
           </div>
         </div>
       </div>
-    </div>
+      <Footer />
+    </AppLayout>
   );
 }

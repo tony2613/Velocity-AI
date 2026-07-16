@@ -29,11 +29,11 @@ import Help from "@/pages/Help";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import Tutorials from "@/pages/Tutorials";
-import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Pricing from "@/pages/Pricing";
 import ResetPassword from "@/pages/ResetPassword";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { SidebarProvider } from "@/context/SidebarContext";
 
 function Router() {
   return (
@@ -49,7 +49,7 @@ function Router() {
       <ProtectedRoute path="/quiz/:id" component={QuizView} />
       <ProtectedRoute path="/quizzes" component={QuizzesPage} />
       <ProtectedRoute path="/upload" component={UploadNotesPage} />
-      <ProtectedRoute path="/profile" component={Profile} />
+      <ProtectedRoute path="/profile" component={Settings} />
       <ProtectedRoute path="/settings" component={Settings} />
 
       {/* Public Pages */}
@@ -79,11 +79,13 @@ function App() {
         <AuthProvider>
           <LanguageProvider>
             <TooltipProvider>
-              <GlobalStudyTimer />
-              <FloatingCana />
-              <IosInstallPrompt />
-              <Toaster />
-              <Router />
+              <SidebarProvider>
+                <GlobalStudyTimer />
+                <FloatingCana />
+                <IosInstallPrompt />
+                <Toaster />
+                <Router />
+              </SidebarProvider>
             </TooltipProvider>
           </LanguageProvider>
         </AuthProvider>

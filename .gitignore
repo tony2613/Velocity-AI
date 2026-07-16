@@ -79,3 +79,6 @@ GIT
 
 # Large asset files tracked by Replit
 attached_assets/
+
+# Scratch files
+scratch/

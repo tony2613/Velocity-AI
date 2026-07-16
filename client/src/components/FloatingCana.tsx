@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Search, Loader2, Sparkles, BrainCircuit, ArrowRight, X, MessageSquare, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -35,11 +35,6 @@ export default function FloatingCana() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-
-  // Route Denylist - completely unmount CANA on these routes
-  if (location.startsWith("/auth") || location.startsWith("/quiz/")) {
-    return null;
-  }
 
   const chatMutation = useMutation({
     mutationFn: async (searchQuery: string) => {
@@ -131,6 +126,13 @@ export default function FloatingCana() {
     window.addEventListener('open-cana-chat', handleOpenChat as EventListener);
     return () => window.removeEventListener('open-cana-chat', handleOpenChat as EventListener);
   }, []);
+
+  // Route Allowlist - only mount CANA on necessary pages (dashboard and notes summary)
+  const isDashboard = location === "/dashboard";
+  const isNotesSummary = location.startsWith("/summary/");
+  if (!isDashboard && !isNotesSummary) {
+    return null;
+  }
 
   return (
     <>

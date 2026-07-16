@@ -1,6 +1,7 @@
 import { useParams, Link } from "wouter";
+import Footer from "@/components/Footer";
 import { useState } from "react";
-import Navbar from "@/components/Navbar";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -66,19 +67,48 @@ export default function QuizView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Skeleton className="h-96 w-full" />
+      <AppLayout>
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          {/* Header Skeleton */}
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-9 w-9 rounded-xl" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-8 w-1/3" />
+              <Skeleton className="h-4 w-1/6" />
+            </div>
+          </div>
+
+          {/* Quiz Card Skeleton */}
+          <Card className="w-full">
+            <CardHeader className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Skeleton className="h-6 w-3/4" />
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex items-center gap-3 p-4 rounded-lg border border-border/60">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </main>
-      </div>
+      </AppLayout>
     );
   }
 
-  if (!data || data.questions.length === 0) {
+  if (!data || !data.questions || data.questions.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
+      <AppLayout>
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold mb-4">Quiz not found</h2>
@@ -87,7 +117,7 @@ export default function QuizView() {
             </Link>
           </div>
         </main>
-      </div>
+      </AppLayout>
     );
   }
 
@@ -95,14 +125,28 @@ export default function QuizView() {
   const progress = ((currentQuestion + 1) / data.questions.length) * 100;
   const isLastQuestion = currentQuestion === data.questions.length - 1;
 
+  if (!question || !question.options || !Array.isArray(question.options)) {
+    return (
+      <AppLayout>
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold mb-4">Quiz question is malformed or missing options</h2>
+            <Link href="/dashboard">
+              <Button>Back to Dashboard</Button>
+            </Link>
+          </div>
+        </main>
+      </AppLayout>
+    );
+  }
+
   if (showSummary) {
     const percentage = Math.round((score / data.questions.length) * 100);
     const attempts = data.attempts || [];
     const previousAttempts = attempts.slice(0, -1); // Exclude the one just saved
 
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
+      <AppLayout>
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card className="text-center mb-8">
             <CardHeader>
@@ -163,13 +207,13 @@ export default function QuizView() {
             </Card>
           )}
         </main>
-      </div>
+        <Footer />
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <AppLayout>
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <div className="flex items-center gap-4">
           <Link href="/dashboard">
@@ -264,6 +308,7 @@ export default function QuizView() {
           </CardFooter>
         </Card>
       </main>
-    </div>
+      <Footer />
+    </AppLayout>
   );
 }

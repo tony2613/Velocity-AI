@@ -124,61 +124,112 @@ export async function geminiOCR(buffer: Buffer, mimeType: string, retries: numbe
     });
 }
 
-export async function geminiChat(messages: { role: string; content: string }[], model: string = "gemini-2.5-flash"): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
-    return executeWithRotation(async (key: string) => {
-        try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-
-            let systemInstruction = undefined;
-            const contents = [];
-
-            for (const m of messages) {
-                if (m.role === "system") {
-                    systemInstruction = { parts: [{ text: m.content }] };
-                } else {
-                    contents.push({
-                        role: m.role === "user" ? "user" : "model",
-                        parts: [{ text: m.content }]
-                    });
-                }
-            }
-
-            const payload = {
-                system_instruction: systemInstruction,
-                contents,
-                generationConfig: {
-                    maxOutputTokens: 8192,
-                    temperature: 0.1
-                },
-                safetySettings
-            };
-
-            const response = await axios.post(url, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 300000
-            });
-
-            const candidate = response.data.candidates?.[0];
-            if (!candidate || !candidate.content) {
-                throw new Error(`Invalid response from Gemini API: ${JSON.stringify(response.data)}`);
-            }
-
-            const text = candidate.content.parts[0].text;
-            
-            const usage = {
-                promptTokens: response.data.usageMetadata?.promptTokenCount || 0,
-                completionTokens: response.data.usageMetadata?.candidatesTokenCount || 0,
-                totalTokens: response.data.usageMetadata?.totalTokenCount || 0
-            };
-
-            return { content: text, usage };
-        } catch (error: any) {
-            console.error(`[Gemini Chat] Error: ${error.message}`);
-            if (error.response?.data) {
-                console.error(`[Gemini Data]: ${JSON.stringify(error.response.data)}`);
-            }
-            throw error;
-        }
+async function callGroqChat(messages: { role: string; content: string }[]): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) {
+        throw new Error("No GROQ_API_KEY configured");
+    }
+    const url = "https://api.groq.com/openai/v1/chat/completions";
+    const payload = {
+        model: "llama-3.3-70b-versatile",
+        messages: messages.map(m => ({
+            role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+            content: m.content
+        })),
+        temperature: 0.1
+    };
+    
+    console.log("[Groq Fallback] Sending request to Groq (llama-3.3-70b-versatile)...");
+    const response = await axios.post(url, payload, {
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+        },
+        timeout: 60000
     });
+    
+    const content = response.data.choices?.[0]?.message?.content;
+    if (!content) {
+        throw new Error("Empty response from Groq API");
+    }
+    
+    const usage = {
+        promptTokens: response.data.usage?.prompt_tokens || 0,
+        completionTokens: response.data.usage?.completion_tokens || 0,
+        totalTokens: response.data.usage?.total_tokens || 0
+    };
+    
+    return { content, usage };
+}
+
+export async function geminiChat(messages: { role: string; content: string }[], model: string = "gemini-2.5-flash"): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    try {
+        return await executeWithRotation(async (key: string) => {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+
+                let systemInstruction = undefined;
+                const contents = [];
+
+                for (const m of messages) {
+                    if (m.role === "system") {
+                        systemInstruction = { parts: [{ text: m.content }] };
+                    } else {
+                        contents.push({
+                            role: m.role === "user" ? "user" : "model",
+                            parts: [{ text: m.content }]
+                        });
+                    }
+                }
+
+                const payload = {
+                    system_instruction: systemInstruction,
+                    contents,
+                    generationConfig: {
+                        maxOutputTokens: 8192,
+                        temperature: 0.1
+                    },
+                    safetySettings
+                };
+
+                const response = await axios.post(url, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 300000
+                });
+
+                const candidate = response.data.candidates?.[0];
+                if (!candidate || !candidate.content) {
+                    throw new Error(`Invalid response from Gemini API: ${JSON.stringify(response.data)}`);
+                }
+
+                const text = candidate.content.parts[0].text;
+                
+                const usage = {
+                    promptTokens: response.data.usageMetadata?.promptTokenCount || 0,
+                    completionTokens: response.data.usageMetadata?.candidatesTokenCount || 0,
+                    totalTokens: response.data.usageMetadata?.totalTokenCount || 0
+                };
+
+                return { content: text, usage };
+            } catch (error: any) {
+                console.error(`[Gemini Chat] Error: ${error.message}`);
+                if (error.response?.data) {
+                    console.error(`[Gemini Data]: ${JSON.stringify(error.response.data)}`);
+                }
+                throw error;
+            }
+        });
+    } catch (geminiError: any) {
+        if (process.env.GROQ_API_KEY) {
+            console.warn(`[Gemini Fallback] Gemini API call failed: ${geminiError.message}. Falling back to Groq API...`);
+            try {
+                return await callGroqChat(messages);
+            } catch (groqError: any) {
+                console.error(`[Groq Fallback Failed] Groq API call also failed: ${groqError.message}`);
+                throw new Error(`Both Gemini and Groq APIs failed. Gemini: ${geminiError.message}. Groq: ${groqError.message}`);
+            }
+        }
+        throw geminiError;
+    }
 }
 

@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useParams, Link } from "wouter";
+import Footer from "@/components/Footer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import Navbar from "@/components/Navbar";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Check, Share2, Download } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Share2, Download, Link2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,28 +34,67 @@ function ShareMenu({
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleCopy = async () => {
+  const handleCopyText = async () => {
+    const textWithContext = `Velocity AI Summary: ${title}\nSubject: ${subject}\n\n${getText()}`;
     try {
-      const text = getText();
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(textWithContext);
       toast({
         title: "Copied!",
-        description: "Summary copied to clipboard.",
+        description: "Summary text copied to clipboard with context.",
       });
-    } catch {
-      const text = getText();
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
+    } catch (e) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = textWithContext;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        toast({
+          title: "Copied!",
+          description: "Summary text copied to clipboard with context.",
+        });
+      } catch (err) {
+        toast({
+          title: "Copy Failed",
+          description: "Could not copy summary text to clipboard.",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const link = window.location.href;
+    try {
+      await navigator.clipboard.writeText(link);
       toast({
-        title: "Copied!",
-        description: "Summary copied to clipboard.",
+        title: "Link Copied!",
+        description: "Summary page link copied to clipboard.",
       });
+    } catch (e) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = link;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        toast({
+          title: "Link Copied!",
+          description: "Summary page link copied to clipboard.",
+        });
+      } catch (err) {
+        toast({
+          title: "Copy Failed",
+          description: "Could not copy link to clipboard.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -65,7 +105,6 @@ function ShareMenu({
       description: "Please wait while we format your document...",
     });
     
-    // We need to render the markdown to HTML to print it cleanly.
     const element = document.getElementById("summary-content-to-print");
     if (!element) {
       toast({
@@ -77,83 +116,94 @@ function ShareMenu({
       return;
     }
 
-    // Create a clone to manipulate for PDF (add title, etc)
-    const clone = element.cloneNode(true) as HTMLElement;
-    
-    const header = document.createElement("div");
-    header.innerHTML = `
-      <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 4px; font-family: sans-serif;">${title}</h1>
-      <p style="font-size: 14px; color: #666; margin-bottom: 24px; font-family: sans-serif;">Velocity AI Summary - ${subject}</p>
-    `;
-    clone.insertBefore(header, clone.firstChild);
-    
-    // Style adjustments for the clone to look good in PDF
-    clone.style.padding = "40px";
-    clone.style.color = "black";
-    clone.style.background = "white";
-    clone.style.fontFamily = "sans-serif";
-    
-    // Temp container
-    const container = document.createElement("div");
-    container.className = "pdf-export-container";
-    container.appendChild(clone);
-    document.body.appendChild(container);
+    let container: HTMLDivElement | null = null;
+    try {
+      const clone = element.cloneNode(true) as HTMLElement;
+      
+      const header = document.createElement("div");
+      header.innerHTML = `
+        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 4px; font-family: sans-serif; color: #111;">${title}</h1>
+        <p style="font-size: 14px; color: #666; margin-bottom: 24px; font-family: sans-serif;">Velocity AI Summary - ${subject}</p>
+      `;
+      clone.insertBefore(header, clone.firstChild);
+      
+      clone.style.padding = "40px";
+      clone.style.color = "black";
+      clone.style.background = "white";
+      clone.style.fontFamily = "sans-serif";
+      
+      container = document.createElement("div");
+      container.className = "pdf-export-container";
+      container.appendChild(clone);
+      document.body.appendChild(container);
 
-    const opt = {
-      margin:       10,
-      filename:     `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_summary.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { 
-        scale: 2, 
-        useCORS: true,
-        onclone: (clonedDoc: Document) => {
-          // Remove dark mode class from the cloned document to ensure black text on white background
-          clonedDoc.documentElement.classList.remove("dark");
-          clonedDoc.body.classList.remove("dark");
-          
-          // Force light background and dark text on the cloned container inside the rendered iframe
-          const expContainer = clonedDoc.querySelector(".pdf-export-container") as HTMLElement;
-          if (expContainer) {
-            expContainer.style.color = "black";
-            expContainer.style.background = "white";
-            expContainer.style.padding = "40px";
-            expContainer.style.fontFamily = "sans-serif";
+      const opt = {
+        margin:       10,
+        filename:     `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_summary.pdf`,
+        image:        { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true,
+          onclone: (clonedDoc: Document) => {
+            clonedDoc.documentElement.classList.remove("dark");
+            clonedDoc.body.classList.remove("dark");
+            const expContainer = clonedDoc.querySelector(".pdf-export-container") as HTMLElement;
+            if (expContainer) {
+              expContainer.style.color = "black";
+              expContainer.style.background = "white";
+              expContainer.style.padding = "40px";
+              expContainer.style.fontFamily = "sans-serif";
+            }
           }
-        }
-      },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+      };
 
-    // Use a small timeout to let the browser process the DOM insertion and styling
-    setTimeout(() => {
-      html2pdf().set(opt).from(container).save().then(() => {
+      setTimeout(() => {
+        if (!container) return;
+        html2pdf().set(opt).from(container).save().then(() => {
+          if (container && document.body.contains(container)) {
+            document.body.removeChild(container);
+          }
+          setIsExporting(false);
+          toast({
+            title: "Success",
+            description: "PDF downloaded successfully.",
+          });
+        }).catch((err: any) => {
+          if (container && document.body.contains(container)) {
+            document.body.removeChild(container);
+          }
+          setIsExporting(false);
+          console.error(err);
+          toast({
+            title: "Export Failed",
+            description: "There was a problem generating the PDF.",
+            variant: "destructive"
+          });
+        });
+      }, 150);
+    } catch (err: any) {
+      if (container && document.body.contains(container)) {
         document.body.removeChild(container);
-        setIsExporting(false);
-        toast({
-          title: "Success",
-          description: "PDF downloaded successfully.",
-        });
-      }).catch((err: any) => {
-        if (document.body.contains(container)) {
-          document.body.removeChild(container);
-        }
-        setIsExporting(false);
-        console.error(err);
-        toast({
-          title: "Export Failed",
-          description: "There was a problem generating the PDF.",
-          variant: "destructive"
-        });
+      }
+      setIsExporting(false);
+      console.error(err);
+      toast({
+        title: "Export Failed",
+        description: "An unexpected error occurred during PDF generation.",
+        variant: "destructive"
       });
-    }, 150);
+    }
   };
 
   const handleNativeShare = async () => {
+    const shareText = `Check out my summary for ${title} on Velocity AI!\n\n${getText().substring(0, 120)}...`;
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Velocity AI Summary: ${title}`,
-          text: `Check out my summary for ${title} on Velocity AI!\n\n${getText().substring(0, 150)}...`,
+          text: shareText,
           url: window.location.href,
         });
       } catch (err: any) {
@@ -167,7 +217,19 @@ function ShareMenu({
       }
     } else {
       // Fallback
-      handleCopy();
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        toast({
+          title: "Link Copied!",
+          description: "Sharing apps not supported. Page link copied to clipboard.",
+        });
+      } catch (err) {
+        toast({
+          title: "Share Unsupported",
+          description: "Sharing is not supported on this device/browser.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -180,9 +242,13 @@ function ShareMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 glass-panel border-primary/10">
-        <DropdownMenuItem onClick={handleCopy} className="cursor-pointer" disabled={isExporting}>
+        <DropdownMenuItem onClick={handleCopyText} className="cursor-pointer" disabled={isExporting}>
           <Copy className="h-4 w-4 mr-2" />
           Copy Text
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer" disabled={isExporting}>
+          <Link2 className="h-4 w-4 mr-2" />
+          Copy Link
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer" disabled={isExporting}>
           {isExporting ? (
@@ -192,12 +258,10 @@ function ShareMenu({
           )}
           {isExporting ? "Exporting..." : "Export as PDF"}
         </DropdownMenuItem>
-        {!!navigator.share && (
-          <DropdownMenuItem onClick={handleNativeShare} className="cursor-pointer" disabled={isExporting}>
-            <Share2 className="h-4 w-4 mr-2" />
-            Share via Apps
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem onClick={handleNativeShare} className="cursor-pointer" disabled={isExporting}>
+          <Share2 className="h-4 w-4 mr-2" />
+          Share via Apps
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -319,20 +383,50 @@ export default function SummaryView() {
 
   if (noteLoading || summaryLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-64 w-full" />
+      <AppLayout>
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
+          {/* Header Skeleton */}
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-9 w-9 rounded-xl" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-8 w-2/3" />
+              <Skeleton className="h-4 w-1/4" />
+            </div>
+          </div>
+
+          {/* Tabs Navigation Skeleton */}
+          <div className="flex border-b border-border gap-6 pb-2">
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-6 w-28" />
+          </div>
+
+          {/* Main Content Area Skeletons */}
+          <div className="space-y-6">
+            <Skeleton className="h-6 w-1/3" />
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-4/5" />
+            </div>
+
+            <Skeleton className="h-6 w-1/4" />
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          </div>
         </main>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!note) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
+      <AppLayout>
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold mb-4">Note not found</h2>
@@ -341,13 +435,12 @@ export default function SummaryView() {
             </Link>
           </div>
         </main>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <Navbar />
+    <AppLayout>
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
         <div className="flex items-center gap-4">
           <Link href="/dashboard">
@@ -521,7 +614,7 @@ export default function SummaryView() {
           )
         )}
       </main>
-
-    </div>
+      <Footer />
+    </AppLayout>
   );
 }

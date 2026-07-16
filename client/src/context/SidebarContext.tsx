@@ -10,15 +10,23 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  // Start with desktop sidebar closed by default
-  const [isOpen, setIsOpen] = useState(false);
+  // Load state from localStorage, default to true (expanded)
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem("sidebar_open");
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
 
-  // Close sidebar on navigation (optional, but good UX for mobile)
   useEffect(() => {
-    const handlePopState = () => setIsOpen(false);
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    try {
+      localStorage.setItem("sidebar_open", JSON.stringify(isOpen));
+    } catch (e) {
+      // ignore
+    }
+  }, [isOpen]);
 
   const toggle = () => setIsOpen(!isOpen);
   const close = () => setIsOpen(false);

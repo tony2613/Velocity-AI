@@ -1,6 +1,7 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import Navbar from "@/components/Navbar";
+import { useState, useMemo } from "react";
+import AppLayout from "@/components/AppLayout";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
+import Footer from "@/components/Footer";
 
 import NoteCard from "@/components/NoteCard";
 import UploadZone from "@/components/UploadZone";
@@ -10,13 +11,12 @@ import { FileText, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import type { Note, Quiz } from "@shared/schema";
+import type { Note } from "@shared/schema";
 import { useLanguage } from "@/context/LanguageContext";
-import { isToday, isYesterday } from "date-fns";
 
 export default function Dashboard() {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { } = useAuth();
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
 
   const { data: notes, isLoading } = useQuery<Note[]>({
@@ -72,9 +72,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout>
       <OnboardingTutorial />
-      <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <div>
           <h1 className="text-3xl font-bold mb-2">{t("dash.title")}</h1>
@@ -90,13 +89,23 @@ export default function Dashboard() {
             </div>
 
             {isLoading ? (
-              <div className="space-y-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-6 border rounded-lg space-y-4">
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
+              <div className="grid gap-6">
+                {[1, 2].map((i) => (
+                  <Card key={i} className="p-5 space-y-4 border border-border/80">
+                    <div className="flex justify-between items-start">
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                    </div>
+                    <Skeleton className="h-6 w-2/3" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-4/5" />
+                    </div>
+                    <div className="flex gap-2 pt-4 border-t border-border/60">
+                      <Skeleton className="h-9 flex-1 rounded-xl" />
+                      <Skeleton className="h-9 flex-1 rounded-xl" />
+                    </div>
+                  </Card>
                 ))}
               </div>
             ) : subjectGroups.length > 0 ? (
@@ -183,6 +192,7 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
-    </div>
+      <Footer />
+    </AppLayout>
   );
 }
