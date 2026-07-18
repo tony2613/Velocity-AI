@@ -122,6 +122,8 @@ export const translations: Record<Language, Record<string, string>> = {
         "auth.enter_password": "Enter your password",
         "auth.choose_password": "Choose a secure password",
         "auth.enter_email": "Enter your email",
+        "auth.or_continue_with": "Or continue with",
+        "auth.continue_with_google": "Continue with Google",
 
         "hero.badge": "AI-Powered Learning",
         "hero.title": "Your Exam Focused Study Engine",

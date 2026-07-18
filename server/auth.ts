@@ -1,5 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { type Express } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
@@ -51,11 +52,14 @@ export function setupAuth(app: Express) {
             try {
                 const user = await storage.getUserByUsername(username);
                 if (!user) {
-                    return done(null, false);
+                    return done(null, false, { message: "Invalid username or password" });
+                }
+                if (!user.password) {
+                    return done(null, false, { message: "This account logs in via Google. Please use Google Sign-in." });
                 }
                 const passwordMatch = await comparePasswords(password, user.password);
                 if (!passwordMatch) {
-                    return done(null, false);
+                    return done(null, false, { message: "Invalid username or password" });
                 }
                 return done(null, user);
             } catch (err) {
@@ -63,6 +67,64 @@ export function setupAuth(app: Express) {
             }
         }),
     );
+
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+        passport.use(
+            new GoogleStrategy(
+                {
+                    clientID: process.env.GOOGLE_CLIENT_ID,
+                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                    callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback",
+                    passReqToCallback: true,
+                },
+                async (_req, _accessToken, _refreshToken, profile, done) => {
+                    try {
+                        const email = profile.emails?.[0]?.value;
+                        if (!email) {
+                            return done(new Error("No email found in Google profile"));
+                        }
+
+                        // 1. Check if user already exists by Google ID
+                        let user = await storage.getUserByGoogleId(profile.id);
+                        if (user) {
+                            return done(null, user);
+                        }
+
+                        // 2. Check if user already exists by email
+                        user = await storage.getUserByEmail(email);
+                        if (user) {
+                            // Link Google ID to existing account
+                            user = await storage.updateUserGoogleId(user.id, profile.id);
+                            return done(null, user);
+                        }
+
+                        // 3. Create a new user with Google details
+                        const displayName = profile.displayName || profile.name?.givenName || email.split("@")[0];
+                        
+                        // Ensure unique username
+                        let username = displayName;
+                        let count = 1;
+                        while (await storage.getUserByUsername(username)) {
+                            username = `${displayName}${count++}`;
+                        }
+
+                        user = await storage.createUser({
+                            username,
+                            email,
+                            googleId: profile.id,
+                            isVerified: true,
+                        });
+
+                        return done(null, user);
+                    } catch (err) {
+                        return done(err);
+                    }
+                }
+            )
+        );
+    } else {
+        console.warn("[Passport] Google OAuth is not configured. Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");
+    }
 
     passport.serializeUser((user, done) => done(null, (user as User).id));
     passport.deserializeUser(async (id: string, done) => {
@@ -75,6 +137,64 @@ export function setupAuth(app: Express) {
     });
 
     // ... inside setupAuth ...
+    app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+    app.get(
+        "/api/auth/google/callback",
+        passport.authenticate("google", { failureRedirect: "/auth" }),
+        async (req, res, next) => {
+            const user = req.user as User;
+            if (!user) {
+                return res.redirect("/auth");
+            }
+
+            try {
+                // Register active session for Google OAuth user
+                const deviceId = "google-oauth";
+                const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
+                const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
+                const allowedLimit = planLimit !== undefined ? planLimit : 1;
+
+                if (allowedLimit !== null) {
+                    const activeSessions = await storage.getActiveSessions(user.id);
+                    const isDeviceAlreadyActive = activeSessions.some(s => s.deviceId === deviceId);
+
+                    if (!isDeviceAlreadyActive && activeSessions.length >= allowedLimit) {
+                        const overflowCount = activeSessions.length - allowedLimit + 1;
+                        const sessionsToDestroy = activeSessions.slice(0, overflowCount);
+
+                        for (const s of sessionsToDestroy) {
+                            await storage.deleteActiveSessionBySessionId(s.sessionId);
+                            if (req.sessionStore && typeof req.sessionStore.destroy === 'function') {
+                                req.sessionStore.destroy(s.sessionId, (destroyErr) => {
+                                    if (destroyErr) {
+                                        console.error(`Failed to destroy session ${s.sessionId}:`, destroyErr);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+
+                await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
+
+                // Log Usage
+                storage.logUsage({
+                    userId: user.id,
+                    action: "LOGIN",
+                    tokensInput: 0,
+                    tokensOutput: 0,
+                    cost: 0,
+                    metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'], provider: "google" }),
+                });
+
+                res.redirect("/dashboard");
+            } catch (err) {
+                next(err);
+            }
+        }
+    );
+
     app.post("/api/register", async (req, res, next) => {
         try {
             const existingUser = await storage.getUserByUsername(req.body.username);

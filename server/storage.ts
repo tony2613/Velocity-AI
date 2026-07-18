@@ -1,6 +1,5 @@
 import {
   type User,
-  type InsertUser,
   type Note,
   type InsertNote,
   type Summary,
@@ -25,7 +24,9 @@ export interface IStorage {
   getUserByResetToken(token: string): Promise<User | undefined>;
   setPasswordResetToken(userId: string, token: string, expiry: Date): Promise<void>;
   updateUserPassword(userId: string, password: string): Promise<void>;
-  createUser(user: InsertUser): Promise<User>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  updateUserGoogleId(userId: string, googleId: string): Promise<User>;
+  createUser(user: Partial<User> & { username: string }): Promise<User>;
   resetDailyUsage(userId: string): Promise<void>;
   incrementDailyUsage(userId: string): Promise<void>;
   resetDailySearch(userId: string): Promise<void>;
@@ -103,7 +104,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
+  async updateUserGoogleId(userId: string, googleId: string): Promise<User> {
+    const [updatedUser] = await db.update(users).set({ googleId }).where(eq(users.id, userId)).returning();
+    return updatedUser;
+  }
+
+  async createUser(insertUser: Partial<User> & { username: string }): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }

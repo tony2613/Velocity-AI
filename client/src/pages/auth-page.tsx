@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import { FaGoogle } from "react-icons/fa";
 
 export default function AuthPage() {
     const { user, loginMutation, registerMutation } = useAuth();
@@ -89,6 +90,32 @@ export default function AuthPage() {
                             <ForgotPasswordForm onBack={() => setActiveTab("login")} />
                         </TabsContent>
                     </Tabs>
+
+                    {activeTab !== "forgot-password" && (
+                        <>
+                            <div className="relative my-4">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t border-zinc-200 dark:border-zinc-800" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-card px-2 text-muted-foreground">
+                                        {t("auth.or_continue_with") || "Or continue with"}
+                                    </span>
+                                </div>
+                            </div>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                onClick={() => {
+                                    window.location.href = "/api/auth/google";
+                                }}
+                            >
+                                <FaGoogle className="h-4 w-4 text-red-500" />
+                                {t("auth.continue_with_google") || "Continue with Google"}
+                            </Button>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         </div>

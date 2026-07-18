@@ -7,11 +7,12 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").unique(),
+  googleId: text("google_id").unique(),
   isVerified: boolean("is_verified").default(false),
   verificationToken: text("verification_token"),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
-  password: text("password").notNull(),
+  password: text("password"),
   isAdmin: boolean("is_admin").default(false),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
@@ -28,6 +29,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   email: true,
+}).extend({
+  password: z.string().min(1, "Password is required"),
+  username: z.string().min(1, "Username is required"),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
