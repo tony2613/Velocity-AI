@@ -1,23 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check, Loader2, X, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, X, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import SEO from "@/components/SEO";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import upiQrCode99 from "@/assets/upi-qr99.png.jpeg";
-import upiQrCode249 from "@/assets/upi-qr249.png.jpeg";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PLANS, PLAN_LIMITS } from "@shared/plans";
 
 const getTiersForRegion = (region: 'IN' | 'EU' | 'US') => {
@@ -37,12 +23,6 @@ const getTiersForRegion = (region: 'IN' | 'EU' | 'US') => {
 
 export default function Pricing() {
     const { user } = useAuth();
-    const { toast } = useToast();
-    const [loadingTier, setLoadingTier] = useState<string | null>(null);
-
-    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-    const [selectedTier, setSelectedTier] = useState<ReturnType<typeof getTiersForRegion>[0] | null>(null);
-    const [transactionId, setTransactionId] = useState("");
     const [region, setRegion] = useState<'IN' | 'EU' | 'US'>('IN');
 
     // Fetch user region once on mount
@@ -63,70 +43,8 @@ export default function Pricing() {
 
     const currentTiers = getTiersForRegion(region);
 
-    const paymentMutation = useMutation({
-        mutationFn: async (data: { tier: string, transactionId: string, amount: string }) => {
-            const res = await apiRequest("POST", "/api/payment-request", data);
-            return res.json();
-        },
-        onSuccess: () => {
-            toast({
-                title: "Payment Requested",
-                description: "Your transaction ID has been submitted for verification. You will be upgraded soon!",
-            });
-            setPaymentModalOpen(false);
-            setTransactionId("");
-            setLoadingTier(null);
-        },
-        onError: (error: Error) => {
-            toast({
-                title: "Submission failed",
-                description: error.message,
-                variant: "destructive",
-            });
-            setLoadingTier(null);
-        },
-    });
-
-    const handleUpgradeClick = (tier: ReturnType<typeof getTiersForRegion>[0]) => {
-        if (!user) {
-            toast({
-                title: "Login Required",
-                description: "Please log in to upgrade your plan.",
-            });
-            return;
-        }
-        
-        if (tier.value === 'free') return; // Cannot explicitly buy free
-        
-        setSelectedTier(tier);
-        setPaymentModalOpen(true);
-    };
-
-    const submitPayment = () => {
-        if (!selectedTier || !transactionId) {
-            toast({
-                title: "Missing Information",
-                description: "Please enter your 12-digit transaction ID.",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        if (transactionId.length < 10) {
-            toast({
-                title: "Invalid ID",
-                description: "Please enter a valid UPI transaction ID (UTR).",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        setLoadingTier(selectedTier.value);
-        paymentMutation.mutate({
-            tier: selectedTier.value,
-            transactionId: transactionId,
-            amount: selectedTier.price.replace(/[^\d.-]/g, '')
-        });
+    const handleUpgradeClick = (_tier: ReturnType<typeof getTiersForRegion>[0]) => {
+        // Upgrade disabled until payment gateway is integrated
     };
 
     return (
@@ -218,16 +136,14 @@ export default function Pricing() {
                                         </ul>
                                     </CardContent>
                                     
-                                    <CardFooter className={`pt-4 pb-6 ${tier.popular ? 'bg-primary/[0.01] rounded-b-xl' : ''}`}>
+                                    <CardFooter className={`pt-4 pb-6 flex flex-col gap-2 ${tier.popular ? 'bg-primary/[0.01] rounded-b-xl' : ''}`}>
                                         <Button
                                             className="w-full text-sm font-semibold h-11"
-                                            variant={isCurrent ? "outline" : (tier.popular ? "default" : "secondary")}
-                                            disabled={isCurrent || loadingTier === tier.value}
+                                            variant={isCurrent ? "outline" : (tier.value !== 'free' ? "secondary" : (tier.popular ? "default" : "secondary"))}
+                                            disabled={isCurrent || tier.value !== 'free'}
                                             onClick={() => handleUpgradeClick(tier)}
                                         >
-                                            {loadingTier === tier.value ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : isCurrent ? (
+                                            {isCurrent ? (
                                                 <span className="flex flex-col items-center leading-tight">
                                                     <span className="font-bold">Current Plan</span>
                                                     {tier.value !== 'free' && (user as any)?.subscriptionExpiresAt && (
@@ -239,9 +155,14 @@ export default function Pricing() {
                                             ) : tier.value === 'free' ? (
                                                 "Included"
                                             ) : (
-                                                user ? "Buy Now" : "Log in to Upgrade"
+                                                "Upgrade"
                                             )}
                                         </Button>
+                                        {tier.value !== 'free' && !isCurrent && (
+                                            <p className="text-xs text-muted-foreground text-center mt-1">
+                                                Upgrading plans will be coming soon
+                                            </p>
+                                        )}
                                     </CardFooter>
                                 </Card>
                             );
@@ -343,137 +264,6 @@ export default function Pricing() {
                 </div>
             </div>
 
-            <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-                <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-                    <DialogHeader className="text-center">
-                        <DialogTitle className="text-xl font-bold">Complete Your Upgrade</DialogTitle>
-                        <DialogDescription className="text-sm">
-                            Upgrade to <strong>{selectedTier?.name}</strong> for <strong>{selectedTier?.price}/month</strong>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex flex-col items-center space-y-4 sm:space-y-5 py-2 sm:py-4">
-                        {region === 'IN' ? (
-                            <>
-                                {/* QR Code - large and crisp for scanning */}
-                                <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
-                                    <img 
-                                        src={
-                                            selectedTier?.value === "pro"
-                                                ? upiQrCode99
-                                                : selectedTier?.value === "elite"
-                                                ? upiQrCode249
-                                                : upiQrCode99
-                                        } 
-                                        alt="UPI QR Code - Scan to Pay" 
-                                        className="w-56 h-56 sm:w-52 sm:h-52 object-contain"
-                                        style={{ imageRendering: 'crisp-edges' }}
-                                    />
-                                </div>
-                                
-                                <div className="text-center w-full space-y-1">
-                                    <p className="font-semibold text-base sm:text-lg">Scan & Pay via UPI</p>
-                                    <p className="text-muted-foreground text-xs font-mono bg-muted py-1 px-3 rounded inline-block select-all">tonylewiston2613@okaxis</p>
-                                    <p className="text-xs text-muted-foreground mt-1">GPay · PhonePe · Paytm · Any UPI App</p>
-                                </div>
-
-                                {/* Divider */}
-                                <div className="w-full flex items-center gap-3">
-                                    <div className="flex-1 h-px bg-border" />
-                                    <span className="text-xs text-muted-foreground">After paying, enter your UTR below</span>
-                                    <div className="flex-1 h-px bg-border" />
-                                </div>
-
-                                <div className="w-full space-y-2">
-                                    <Label htmlFor="utr" className="text-sm font-medium">UPI Transaction ID (UTR)</Label>
-                                    <Input 
-                                        id="utr" 
-                                        placeholder="e.g. 412345678901" 
-                                        value={transactionId}
-                                        onChange={(e) => setTransactionId(e.target.value)}
-                                        className="h-12 text-base sm:h-10 sm:text-sm"
-                                        inputMode="numeric"
-                                    />
-                                    <p className="text-xs text-muted-foreground text-center">Find this 12-digit number in your payment app under transaction details.</p>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="bg-muted/30 p-6 rounded-2xl border border-primary/20 w-full">
-                                    <div className="flex justify-center gap-4 mb-4">
-                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-6" />
-                                        </div>
-                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4" />
-                                        </div>
-                                        <div className="h-10 w-16 bg-white rounded border flex items-center justify-center p-1 shadow-sm">
-                                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-6" />
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="text-center space-y-3">
-                                        <p className="font-bold text-lg">International Checkout</p>
-                                        <p className="text-sm text-muted-foreground font-medium">
-                                            Pay via <strong>Credit Card</strong> or <strong>PayPal</strong> to upgrade to {selectedTier?.name}.
-                                        </p>
-                                        
-                                        <Button 
-                                            size="lg" 
-                                            className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white font-bold h-12 rounded-xl"
-                                            onClick={() => {
-                                                const amount = selectedTier?.price.replace(/[^\d.-]/g, '');
-                                                const currency = region === 'EU' ? 'EUR' : 'USD';
-                                                window.open(`https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=tonylewiston2613@gmail.com&item_name=VelocityAI%20${selectedTier?.name}&amount=${amount}&currency_code=${currency}`, '_blank');
-                                            }}
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                Proceed to PayPal
-                                            </span>
-                                        </Button>
-                                        
-                                        <div className="flex items-center justify-center gap-2 pt-2">
-                                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Verification Email</span>
-                                            <p className="text-xs font-mono bg-background py-1 px-3 rounded border">tonylewiston2613@gmail.com</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Divider */}
-                                <div className="w-full flex items-center gap-3">
-                                    <div className="flex-1 h-px bg-border" />
-                                    <span className="text-xs text-muted-foreground">After paying, enter your PayPal Transaction ID</span>
-                                    <div className="flex-1 h-px bg-border" />
-                                </div>
-
-                                <div className="w-full space-y-2">
-                                    <Label htmlFor="utr" className="text-sm font-medium">PayPal Transaction ID</Label>
-                                    <Input 
-                                        id="utr" 
-                                        placeholder="e.g. 9DL8... or invoice number" 
-                                        value={transactionId}
-                                        onChange={(e) => setTransactionId(e.target.value)}
-                                        className="h-12 text-base sm:h-10 sm:text-sm"
-                                    />
-                                    <p className="text-xs text-muted-foreground text-center">We will manually verify and upgrade your account within a few hours.</p>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-                        <Button variant="ghost" onClick={() => setPaymentModalOpen(false)} className="h-11 sm:h-9">Cancel</Button>
-                        <Button 
-                            onClick={submitPayment} 
-                            disabled={loadingTier === selectedTier?.value || !transactionId}
-                            className="h-11 sm:h-9 text-base sm:text-sm font-semibold"
-                        >
-                            {loadingTier === selectedTier?.value ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            Submit Payment Proof
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
