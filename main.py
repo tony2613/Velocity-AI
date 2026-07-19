@@ -329,24 +329,29 @@ def extract(file: UploadFile = File(...)):
             # --- PARALLEL PROCESSING HELPER ---
             def process_single_page(page_num):
                 # We open a NEW handle for each thread to avoid 'fitz' multithreading issues
-                # though usually it's fine for simple page reads.
                 handle = None
                 try:
-                    # For stability, we use the original doc and access by index
-                    p = doc[page_num]
+                    if temp_pdf_path:
+                        handle = fitz.open(temp_pdf_path)
+                    else:
+                        handle = fitz.open(stream=content, filetype="pdf")
+                    
+                    p = handle[page_num]
                     
                     # 1. Direct text extraction (Fastest)
                     t = p.get_text().strip()
                     if len(t) > 200:
+                        handle.close()
                         return f"\n--- Page {page_num+1} ---\n{t}"
                     
-                    # 2. OCR Fallback (200 DPI for optimal Speed + Accuracy)
+                    # 2. OCR Fallback (150 DPI for optimal Speed + Accuracy)
                     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                         img_path = tmp.name
                     
-                    # 150 DPI: Fast upload + sufficient resolution for Google Vision
                     pix = p.get_pixmap(dpi=150)
                     pix.save(img_path)
+                    handle.close()
+                    handle = None
                     
                     print(f"DEBUG: Parallel OCR'ing Page {page_num+1}...")
                     page_text = perform_ocr_on_file(img_path)
@@ -356,6 +361,9 @@ def extract(file: UploadFile = File(...)):
                         
                     return f"\n--- Page {page_num+1} ---\n{page_text}"
                 except Exception as e:
+                    if handle:
+                        try: handle.close()
+                        except: pass
                     return f"\n--- Page {page_num+1} ERROR: {str(e)} ---"
 
             # Parallel execution (5 workers: stable on Windows, avoids network congestion)
