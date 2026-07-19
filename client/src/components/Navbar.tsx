@@ -68,11 +68,30 @@ export default function Navbar() {
     ? (isOpen ? "md:left-[17rem]" : "md:left-[5rem]")
     : "";
 
+  const leftPositionClass = user
+    ? "left-16 sm:left-[4.5rem]"
+    : "left-2 sm:left-4";
+
   return (
-    <nav 
-      className={`fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[60] rounded-[1.5rem] transition-all duration-300 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 ${sidebarOffsetClass}`}
-      style={{ transform: isNavbarVisible ? "translateY(0)" : "translateY(calc(-100% - 2rem))" }}
-    >
+    <>
+      {user && (
+        <div className="md:hidden fixed top-4 sm:top-6 left-2 sm:left-4 z-[70]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="w-12 h-12 rounded-[1rem] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 flex items-center justify-center text-foreground hover:bg-white dark:hover:bg-zinc-900 transition-all duration-300 hover:scale-105 active:scale-95"
+            data-testid="button-sidebar-toggle-mobile"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
+
+      <nav 
+        className={`fixed top-2 sm:top-4 ${leftPositionClass} right-2 sm:right-4 z-[60] rounded-[1.5rem] transition-all duration-300 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 ${sidebarOffsetClass}`}
+        style={{ transform: isNavbarVisible ? "translateY(0)" : "translateY(calc(-100% - 2rem))" }}
+      >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo & Desktop Nav */}
@@ -173,10 +192,6 @@ export default function Navbar() {
                   <span className="text-xs">Install</span>
                 </Button>
               )}
-
-              <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-                <Menu className="h-5 w-5" />
-              </Button>
             </div>
           </div>
         </div>
@@ -252,5 +267,6 @@ export default function Navbar() {
 
 
     </nav >
+    </>
   );
 }

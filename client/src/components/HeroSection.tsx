@@ -34,7 +34,7 @@ export default function HeroSection() {
               {t("hero.subtitle")}
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href={user ? "/dashboard" : "/demo"}>
+              <Link href={user ? "/dashboard" : "/auth"}>
                 <a data-testid="button-get-started">
                   <Button size="lg" className="gap-2">
                     {t("hero.cta_primary")}
