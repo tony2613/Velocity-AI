@@ -450,7 +450,7 @@ export default function SummaryView() {
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-bold truncate">{note.title}</h1>
-            <p className="text-muted-foreground">{note.subject}</p>
+            <p className="text-muted-foreground truncate">{note.subject}</p>
           </div>
           {summary && !error && (
             <ShareMenu
@@ -497,14 +497,14 @@ export default function SummaryView() {
             <div id="summary-content-to-print">
 
             <TabsContent value="full" className="mt-0">
-              <Card className="border-none shadow-none bg-transparent">
-                <CardContent className="p-0">
-                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
+              <Card className="border-none shadow-none bg-transparent w-full">
+                <CardContent className="p-0 w-full">
+                  <div className="prose prose-base dark:prose-invert max-w-none break-words [word-break:break-word] overflow-x-auto leading-relaxed text-foreground/90 w-full">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
                         table: ({ children }) => (
-                          <div className="overflow-x-auto my-6 -mx-1 px-1">
+                          <div className="overflow-x-auto my-6 -mx-1 px-1 w-full">
                             <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
                           </div>
                         ),
@@ -512,6 +512,23 @@ export default function SummaryView() {
                         tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
                         th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
                         td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
+                        pre: ({ children }) => (
+                          <pre className="overflow-x-auto p-4 rounded-xl bg-muted/30 border border-border max-w-full my-4 font-mono text-xs leading-relaxed whitespace-pre">
+                            {children}
+                          </pre>
+                        ),
+                        code: ({ className, children, ...props }) => {
+                          const isInline = !className;
+                          return isInline ? (
+                            <code className="bg-muted/50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono text-[0.85em] text-foreground/90 break-all" {...props}>
+                              {children}
+                            </code>
+                          ) : (
+                            <code className="block w-full overflow-x-auto font-mono text-xs" {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
                       }}
                     >
                       {summary.content}
@@ -522,10 +539,40 @@ export default function SummaryView() {
             </TabsContent>
 
             <TabsContent value="snapshot" className="mt-0">
-              <Card className="border-none shadow-none bg-transparent">
-                <CardContent className="p-0 space-y-4">
-                  <div className="prose prose-base dark:prose-invert max-w-none leading-relaxed text-foreground/90">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <Card className="border-none shadow-none bg-transparent w-full">
+                <CardContent className="p-0 space-y-4 w-full">
+                  <div className="prose prose-base dark:prose-invert max-w-none break-words [word-break:break-word] overflow-x-auto leading-relaxed text-foreground/90 w-full">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-6 -mx-1 px-1 w-full">
+                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
+                          </div>
+                        ),
+                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
+                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
+                        pre: ({ children }) => (
+                          <pre className="overflow-x-auto p-4 rounded-xl bg-muted/30 border border-border max-w-full my-4 font-mono text-xs leading-relaxed whitespace-pre">
+                            {children}
+                          </pre>
+                        ),
+                        code: ({ className, children, ...props }) => {
+                          const isInline = !className;
+                          return isInline ? (
+                            <code className="bg-muted/50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono text-[0.85em] text-foreground/90 break-all" {...props}>
+                              {children}
+                            </code>
+                          ) : (
+                            <code className="block w-full overflow-x-auto font-mono text-xs" {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
                       {getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0]}
                     </ReactMarkdown>
                   </div>
@@ -534,15 +581,15 @@ export default function SummaryView() {
             </TabsContent>
 
             <TabsContent value="takeaways" className="mt-0">
-               <Card className="border-none shadow-none bg-transparent">
-                <CardContent className="p-0">
-                  <ul className="space-y-4">
+               <Card className="border-none shadow-none bg-transparent w-full">
+                <CardContent className="p-0 w-full">
+                  <ul className="space-y-4 w-full">
                     {(summary.keyPoints.length > 0 ? summary.keyPoints : (getSection(summary.content, "Takeaways") || getSection(summary.content, "Key")).split("\n").filter(l => /^[*-•]/.test(l.trim()))).map((point: string, index: number) => (
-                      <li key={index} className="flex gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+                      <li key={index} className="flex gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10 w-full min-w-0">
                         <span className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
                           {index + 1}
                         </span>
-                        <span className="text-foreground/90 leading-snug">{point.replace(/^[-*•]\s+/, "")}</span>
+                        <span className="text-foreground/90 leading-snug break-words [word-break:break-word] w-full min-w-0">{point.replace(/^[-*•]\s+/, "")}</span>
                       </li>
                     ))}
                   </ul>
@@ -553,16 +600,16 @@ export default function SummaryView() {
 
 
             {summary.topicExplanations && (
-              <TabsContent value="research" className="mt-0 space-y-4">
+              <TabsContent value="research" className="mt-0 space-y-4 w-full">
                 {Object.entries(summary.topicExplanations).map(([topic, explanation], index) => (
-                  <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5">
-                    <CardHeader className="bg-primary/10 py-3">
-                      <h4 className="font-bold text-primary flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" /> {topic}
+                  <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5 w-full">
+                    <CardHeader className="bg-primary/10 py-3 w-full min-w-0">
+                      <h4 className="font-bold text-primary flex items-center gap-2 break-words [word-break:break-word] w-full min-w-0">
+                        <Sparkles className="h-4 w-4 shrink-0" /> {topic}
                       </h4>
                     </CardHeader>
-                    <CardContent className="py-4">
-                      <p className="text-sm leading-relaxed text-foreground/80 italic">"{explanation}"</p>
+                    <CardContent className="py-4 w-full min-w-0">
+                      <p className="text-sm leading-relaxed text-foreground/80 italic break-words [word-break:break-word] w-full min-w-0">"{explanation}"</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -570,9 +617,9 @@ export default function SummaryView() {
             )}
 
             <TabsContent value="raw" className="mt-0">
-              <Card>
-                <CardContent className="p-4 bg-muted/30">
-                  <p className="whitespace-pre-wrap text-xs text-muted-foreground font-mono leading-tight max-h-[60vh] overflow-y-auto">
+              <Card className="w-full">
+                <CardContent className="p-4 bg-muted/30 w-full overflow-hidden">
+                  <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground font-mono leading-tight max-h-[60vh] overflow-y-auto w-full">
                     {note.content}
                   </p>
                 </CardContent>
