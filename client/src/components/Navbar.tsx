@@ -63,18 +63,24 @@ export default function Navbar() {
     }
   };
 
+  const isAppRoute = ["/dashboard", "/notes", "/quizzes", "/upload", "/settings", "/profile"].includes(location) ||
+                     location.startsWith("/summary/") ||
+                     location.startsWith("/quiz/");
+
+  const showFloatingHamburger = !!user && isAppRoute;
+
   const { isOpen } = useSidebar();
   const sidebarOffsetClass = user 
     ? (isOpen ? "md:left-[17rem]" : "md:left-[5rem]")
     : "";
 
-  const leftPositionClass = user
+  const leftPositionClass = showFloatingHamburger
     ? "left-16 sm:left-[4.5rem]"
     : "left-2 sm:left-4";
 
   return (
     <>
-      {user && (
+      {showFloatingHamburger && (
         <div className="md:hidden fixed top-4 sm:top-6 left-2 sm:left-4 z-[70]">
           <Button
             variant="ghost"
@@ -180,6 +186,14 @@ export default function Navbar() {
             {/* Mobile Actions */}
             <div className="md:hidden flex items-center gap-2">
             {/* Mobile Search Sheet Removed */}
+
+              {user && (
+                <Link href="/dashboard">
+                  <Button variant="outline" size="sm" className="border-border hover:bg-muted/50 rounded-xl h-8 text-xs font-semibold px-3">
+                    {t("nav.dashboard") || "Dashboard"}
+                  </Button>
+                </Link>
+              )}
 
               {isInstallable && !isInstalled && (
                 <Button
