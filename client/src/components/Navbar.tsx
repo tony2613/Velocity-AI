@@ -13,7 +13,7 @@ import { PLAN_LIMITS } from "@shared/plans";
 
 export default function Navbar() {
   const { t } = useLanguage();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
