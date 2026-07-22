@@ -274,8 +274,7 @@
     pointer-events: none;
     transition: background-color 0.15s ease-in-out;
   }
-
-
+}
 
 @layer base {
   * {
