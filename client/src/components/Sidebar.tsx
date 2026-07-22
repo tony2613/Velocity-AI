@@ -51,7 +51,7 @@ export default function Sidebar() {
 
   return (
     <aside 
-      className={`fixed left-0 top-0 bottom-0 z-50 h-screen transition-all duration-300 ease-in-out border-r border-border bg-card dark:bg-[#33415c] flex flex-col justify-between select-none ${
+      className={`fixed left-0 top-0 bottom-0 z-50 h-screen transition-all duration-300 ease-in-out border-r border-border bg-card dark:bg-black flex flex-col justify-between select-none ${
         isOpen ? "w-64" : "w-16"
       }`}
     >
@@ -62,7 +62,7 @@ export default function Sidebar() {
         }`}>
           {isOpen ? (
             <Link href="/dashboard" className="flex items-center gap-2 cursor-pointer">
-              <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7" />
+              <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7 bg-white/10 p-0.5 rounded" />
               <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-primary to-indigo-400 bg-clip-text text-transparent">
                 VelocityAI
               </span>
