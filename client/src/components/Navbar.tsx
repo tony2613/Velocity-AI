@@ -10,7 +10,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useLanguage } from "@/context/LanguageContext";
 import { PLAN_LIMITS } from "@shared/plans";
-import velocityLogo from "../assets/Velocity-AI-logo.png";
 
 export default function Navbar() {
   const { t } = useLanguage();
@@ -105,7 +104,6 @@ export default function Navbar() {
           <div className="flex items-center gap-8">
             <Link href="/">
               <div className="flex items-center gap-2 cursor-pointer">
-                <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7" />
                 <span className="font-bold text-xl tracking-tight">Velocity AI</span>
               </div>
             </Link>
