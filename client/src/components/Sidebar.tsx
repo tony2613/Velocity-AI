@@ -51,7 +51,7 @@ export default function Sidebar() {
 
   return (
     <aside 
-      className={`fixed left-0 top-0 bottom-0 z-50 h-screen transition-all duration-300 ease-in-out border-r border-border bg-card flex flex-col justify-between select-none ${
+      className={`fixed left-0 top-0 bottom-0 z-50 h-screen transition-all duration-300 ease-in-out border-r border-border bg-card dark:bg-[#33415c] flex flex-col justify-between select-none ${
         isOpen ? "w-64" : "w-16"
       }`}
     >
