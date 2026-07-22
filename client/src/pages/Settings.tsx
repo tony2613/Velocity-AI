@@ -89,7 +89,13 @@ export default function Settings() {
       ? "Pro" 
       : "Elite";
 
-  const memberSince = "Oct 29, 2025";
+  const memberSince = user.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Oct 29, 2025";
 
   const copyUserId = () => {
     navigator.clipboard.writeText(user.id.toString());

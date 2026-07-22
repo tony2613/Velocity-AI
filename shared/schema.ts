@@ -23,6 +23,7 @@ export const users = pgTable("users", {
   monthlySearchCount: integer("monthly_search_count").notNull().default(0),
   lastMonthlySearchDate: timestamp("last_monthly_search_date").defaultNow(),
   streakCount: integer("streak_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
