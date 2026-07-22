@@ -185,7 +185,7 @@ export default function Sidebar() {
       </div>
 
       {/* Bottom Section - Settings, Upgrade & User Profile */}
-      <div className="p-3 border-t border-border shrink-0 flex flex-col gap-2 bg-card">
+      <div className="p-3 border-t border-border shrink-0 flex flex-col gap-2 bg-card dark:bg-black">
         {/* Upgrade Banner for Free Users */}
         {isOpen && isFreeTier && (
           <Link href="/pricing">

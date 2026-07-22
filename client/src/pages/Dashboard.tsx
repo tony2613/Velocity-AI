@@ -4,7 +4,6 @@ import OnboardingTutorial from "@/components/OnboardingTutorial";
 import Footer from "@/components/Footer";
 
 import NoteCard from "@/components/NoteCard";
-import UploadZone from "@/components/UploadZone";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
@@ -82,8 +81,8 @@ export default function Dashboard() {
 
 
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="space-y-6">
             <div id="tut-notes" className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold">{t("dash.your_notes")}</h2>
             </div>
@@ -184,11 +183,6 @@ export default function Dashboard() {
                 <p className="text-muted-foreground mb-4">{t("dash.upload_first")}</p>
               </div>
             )}
-          </div>
-
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold">{t("dash.quick_upload")}</h2>
-            <UploadZone />
           </div>
         </div>
       </main>
