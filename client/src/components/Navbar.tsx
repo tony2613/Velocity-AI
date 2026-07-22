@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { useLanguage } from "@/context/LanguageContext";
 import { PLAN_LIMITS } from "@shared/plans";
+import velocityLogo from "../assets/Velocity-AI-logo.png";
 
 export default function Navbar() {
   const { t } = useLanguage();
@@ -95,7 +96,7 @@ export default function Navbar() {
       )}
 
       <nav 
-        className={`fixed top-2 sm:top-4 ${leftPositionClass} right-2 sm:right-4 z-[60] rounded-[1.5rem] transition-all duration-300 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 ${sidebarOffsetClass}`}
+        className={`fixed top-2 sm:top-4 ${leftPositionClass} right-2 sm:right-4 z-[60] rounded-[1.5rem] transition-all duration-300 bg-white/80 dark:bg-card/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-border/60 shadow-lg shadow-black/10 dark:shadow-black/30 ${sidebarOffsetClass}`}
         style={{ transform: isNavbarVisible ? "translateY(0)" : "translateY(calc(-100% - 2rem))" }}
       >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -104,6 +105,7 @@ export default function Navbar() {
           <div className="flex items-center gap-8">
             <Link href="/">
               <div className="flex items-center gap-2 cursor-pointer">
+                <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7" />
                 <span className="font-bold text-xl tracking-tight">Velocity AI</span>
               </div>
             </Link>
