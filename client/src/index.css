@@ -84,18 +84,18 @@
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-  --background: 240 10% 3.9%; /* Cosmic Black (#09090b) dark page background */
-  --foreground: 210 40% 98%; /* High-contrast white-grey text for max readability */
-  --card: 219 33% 15%; /* Starry Blue (#1a2333) card background */
+  --background: 219 33% 15%; /* Starry Blue (#1a2333) dark page background */
+  --foreground: 210 40% 98%; /* High-contrast white-grey text */
+  --card: 240 10% 3.9%; /* Cosmic Black (#09090b) card background */
   --card-foreground: 210 40% 98%;
-  --popover: 219 33% 15%;
+  --popover: 240 10% 3.9%;
   --popover-foreground: 210 40% 98%;
   --primary: 210 96% 40%; /* Smart Blue (#0466c8) */
   --primary-foreground: 210 40% 98%;
   --secondary: 219 30% 20%;
   --secondary-foreground: 210 40% 98%;
   --muted: 219 30% 12%;
-  --muted-foreground: 215 16% 62%; /* Starry Slate Grey description text - high contrast */
+  --muted-foreground: 215 16% 62%; /* Starry Slate Grey description text */
   --accent: 219 30% 20%;
   --accent-foreground: 210 40% 98%;
   --destructive: 0 62.8% 30.6%;
