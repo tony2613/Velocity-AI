@@ -125,8 +125,8 @@ export const translations: Record<Language, Record<string, string>> = {
         "auth.or_continue_with": "Or continue with",
         "auth.continue_with_google": "Continue with Google",
 
-        "hero.badge": "AI-Powered Learning",
-        "hero.title": "Your Exam Focused Study Engine",
+        "hero.badge": "Velocity AI — AI-Powered Learning",
+        "hero.title": "Velocity AI: Your Exam-Focused Study Engine",
         "hero.subtitle": "Transform your notes into AI-powered summaries and quizzes. Learn faster and retain more with our affordable AI study assistant.",
         "hero.cta_primary": "Get Started Free",
         "hero.cta_secondary": "How It Works",

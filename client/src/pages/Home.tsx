@@ -40,11 +40,11 @@ export default function Home() {
       <HeroSection />
       <HowItWorks />
       <FeaturesGrid />
-      <section className="py-12 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 text-center px-4">
-        <div className="max-w-3xl mx-auto space-y-4">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">About Velocity AI & Google Login</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Velocity AI is an intelligent study assistant platform designed to help students, researchers, and learners organize study notes, summarize academic materials, generate practice quizzes, and boost learning efficiency. We provide secure Google Sign-in to authenticate user accounts, keep track of study progress, and sync study materials across devices. By logging in with Google, you grant us access to your name and email address, which we use strictly for account identification and personalization.
+      <section className="py-16 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 text-center px-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">About Velocity AI</h2>
+          <p className="text-lg text-muted-foreground leading-relaxed max-w-3xl mx-auto">
+            Velocity AI is an intelligent, AI-powered study assistant platform designed to transform the way you learn. By converting lengthy study materials—such as textbooks, lecture notes, academic PDFs, presentations, and audio recordings—into concise, structured summaries and interactive practice quizzes, Velocity AI helps students, researchers, and professionals study smarter, test their knowledge, and boost learning efficiency.
           </p>
         </div>
       </section>
