@@ -163,12 +163,6 @@ export default function Navbar() {
                     <Sparkles className="h-3 w-3" />
                     <span>{usageLimit - dailyUsage} uploads left</span>
                   </div>
-                  <Link href="/upload">
-                    <Button id="tut-upload" className="gap-2 mr-2">
-                      <Upload className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t("nav.upload")}</span>
-                    </Button>
-                  </Link>
                 </>
               ) : (
                 <div className="flex items-center gap-2">
