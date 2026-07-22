@@ -84,24 +84,24 @@
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-  --background: 219 100% 10%; /* Deep Prussian Blue 3 (#001233) dark page background */
-  --foreground: 223 11% 93%; /* Light Lavender Grey text for high readability */
-  --card: 219 100% 14%; /* Prussian Blue 2 (#001845) card background */
-  --card-foreground: 223 11% 93%;
-  --popover: 219 100% 14%;
-  --popover-foreground: 223 11% 93%;
+  --background: 240 10% 3.9%; /* Cosmic Black (#09090b) dark page background */
+  --foreground: 210 40% 98%; /* High-contrast white-grey text for max readability */
+  --card: 219 33% 15%; /* Starry Blue (#1a2333) card background */
+  --card-foreground: 210 40% 98%;
+  --popover: 219 33% 15%;
+  --popover-foreground: 210 40% 98%;
   --primary: 210 96% 40%; /* Smart Blue (#0466c8) */
   --primary-foreground: 210 40% 98%;
-  --secondary: 220 29% 20%;
-  --secondary-foreground: 223 11% 93%;
-  --muted: 220 29% 15%;
-  --muted-foreground: 222 11% 70%; /* Slate Grey description text */
-  --accent: 220 29% 20%;
-  --accent-foreground: 223 11% 93%;
+  --secondary: 219 30% 20%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 219 30% 12%;
+  --muted-foreground: 215 16% 62%; /* Starry Slate Grey description text - high contrast */
+  --accent: 219 30% 20%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
-  --border: 212 100% 17%; /* Prussian Blue (#002855) border for dark modes */
-  --input: 212 100% 17%;
+  --border: 219 30% 22%; /* Starry Blue border (#27354d) */
+  --input: 219 30% 22%;
   --ring: 210 96% 40%;
   --chart-1: 220 70% 50%;
   --chart-2: 160 60% 45%;
