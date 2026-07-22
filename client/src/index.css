@@ -84,25 +84,25 @@
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-  --background: 219 33% 15%; /* Starry Blue (#1a2333) dark page background */
-  --foreground: 210 40% 98%; /* High-contrast white-grey text */
-  --card: 240 10% 3.9%; /* Cosmic Black (#09090b) card background */
+  --background: 224 71% 4%; /* Deep Obsidian Cosmic Black (#030712) background */
+  --foreground: 210 40% 98%; /* High-contrast off-white text for max readability */
+  --card: 223 51% 11%; /* Premium Starry Navy Blue (#0e172c) card background */
   --card-foreground: 210 40% 98%;
-  --popover: 240 10% 3.9%;
+  --popover: 223 51% 11%;
   --popover-foreground: 210 40% 98%;
-  --primary: 210 96% 40%; /* Smart Blue (#0466c8) */
+  --primary: 221.2 83.2% 53.3%; /* Electric Blue brand color (#2563eb) */
   --primary-foreground: 210 40% 98%;
-  --secondary: 219 30% 20%;
+  --secondary: 217.2 32.6% 17.5%; /* Slate secondary background (#1e293b) */
   --secondary-foreground: 210 40% 98%;
-  --muted: 219 30% 12%;
-  --muted-foreground: 215 16% 62%; /* Starry Slate Grey description text */
-  --accent: 219 30% 20%;
+  --muted: 217.2 32.6% 12%;
+  --muted-foreground: 215.4 16.3% 65%; /* Cool slate grey for description text */
+  --accent: 217.2 32.6% 17.5%;
   --accent-foreground: 210 40% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
-  --border: 219 30% 22%; /* Starry Blue border (#27354d) */
-  --input: 219 30% 22%;
-  --ring: 210 96% 40%;
+  --border: 217.2 32.6% 17.5%; /* Slate borders (#1e293b) */
+  --input: 217.2 32.6% 17.5%;
+  --ring: 221.2 83.2% 53.3%;
   --chart-1: 220 70% 50%;
   --chart-2: 160 60% 45%;
   --chart-3: 30 80% 55%;
