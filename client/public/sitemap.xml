@@ -49,6 +49,12 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://velocityai.app/blog/how-velocityai-helps-users-retain-more-knowledge</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://velocityai.app/tutorials</loc>
     <lastmod>2026-02-22</lastmod>
     <changefreq>monthly</changefreq>

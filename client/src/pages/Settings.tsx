@@ -47,6 +47,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Settings() {
   const { user, logoutMutation } = useAuth();
@@ -58,6 +59,44 @@ export default function Settings() {
   const [accessCodeModal, setAccessCodeModal] = useState(false);
   const [accessCode, setAccessCode] = useState("");
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
+  const [refundModal, setRefundModal] = useState(false);
+  const [refundReason, setRefundReason] = useState("");
+
+  const { data: activePayment } = useQuery<any>({
+    queryKey: ["/api/payments/active"],
+    enabled: !!user && user.subscriptionTier !== "free",
+  });
+
+  const refundMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const res = await fetch("/api/refund-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to submit refund request");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/active"] });
+      toast({
+        title: "Refund Request Submitted",
+        description: data.message || "Your request is under review.",
+      });
+      setRefundModal(false);
+      setRefundReason("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Refund Request Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const { data: notes, isLoading: notesLoading } = useQuery<any[]>({
     queryKey: ["/api/notes"],
@@ -292,7 +331,11 @@ export default function Settings() {
                   <CardTitle className="text-xl font-bold flex items-center gap-2">
                     Subscription
                   </CardTitle>
-                  <CardDescription>Basic access with essential features</CardDescription>
+                  <CardDescription>
+                    {user.subscriptionTier === "free" 
+                      ? "Basic access with essential features" 
+                      : `Premium subscriber - Velocity ${currentPlanName}`}
+                  </CardDescription>
                 </div>
                 <Crown className="h-5 w-5 text-violet-500 shrink-0" />
               </CardHeader>
@@ -302,12 +345,75 @@ export default function Settings() {
                     <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Current Plan</span>
                     <span className="text-xl font-bold text-foreground">{currentPlanName}</span>
                   </div>
-                  <Link href="/pricing">
-                    <Button className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-indigo-500/10 gap-1.5 rounded-xl px-5">
-                      <Sparkles className="h-4 w-4" />
-                      Upgrade
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {user.subscriptionTier === "free" ? (
+                      <Link href="/pricing">
+                        <Button className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-indigo-500/10 gap-1.5 rounded-xl px-5">
+                          <Sparkles className="h-4 w-4" />
+                          Upgrade
+                        </Button>
+                      </Link>
+                    ) : (
+                      <>
+                        {(!activePayment || activePayment.status === "approved") && (
+                          <Dialog open={refundModal} onOpenChange={setRefundModal}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" className="border-red-500/20 text-red-500 hover:bg-red-500/10 hover:text-red-600 rounded-xl">
+                                Request Refund
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md glass-panel-heavy">
+                              <form onSubmit={(e) => { e.preventDefault(); refundMutation.mutate(refundReason); }}>
+                                <DialogHeader>
+                                  <DialogTitle className="text-red-500 flex items-center gap-2">Request Subscription Refund</DialogTitle>
+                                  <DialogDescription>
+                                    Are you sure you want to request a refund for your subscription? Please let us know the reason.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4 space-y-2">
+                                  <span className="text-xs font-semibold text-muted-foreground">Reason for Refund</span>
+                                  <Textarea 
+                                    placeholder="Explain why you are requesting a refund..." 
+                                    value={refundReason} 
+                                    onChange={(e) => setRefundReason(e.target.value)}
+                                    className="rounded-xl border-border bg-muted/30 min-h-[100px]"
+                                    required
+                                  />
+                                </div>
+                                <DialogFooter className="gap-2 sm:gap-0">
+                                  <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    onClick={() => setRefundModal(false)}
+                                    className="rounded-xl"
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button 
+                                    type="submit" 
+                                    className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                                    disabled={refundMutation.isPending}
+                                  >
+                                    {refundMutation.isPending ? "Submitting..." : "Submit Request"}
+                                  </Button>
+                                </DialogFooter>
+                              </form>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                        {activePayment?.status === "refund_pending" && (
+                          <span className="text-xs bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-full font-semibold animate-pulse">
+                            Refund Pending Review
+                          </span>
+                        )}
+                        {activePayment?.status === "refunded" && (
+                          <span className="text-xs bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1.5 rounded-full font-semibold">
+                            Refunded
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Access Code Claim Section */}

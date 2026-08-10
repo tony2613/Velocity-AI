@@ -6,13 +6,12 @@ import remarkGfm from "remark-gfm";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowLeft, Sparkles, Loader2, FileText, Info, ListChecks, Search, Copy, Share2, Download, Link2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Search, Copy, Share2, Download, Link2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Note, Summary } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -267,10 +266,38 @@ function ShareMenu({
   );
 }
 
+const markdownComponents = {
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-6 -mx-1 px-1 w-full">
+      <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => <thead className="bg-muted/50">{children}</thead>,
+  tr: ({ children }: any) => <tr className="border-b border-border last:border-0">{children}</tr>,
+  th: ({ children }: any) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
+  td: ({ children }: any) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
+  pre: ({ children }: any) => (
+    <pre className="overflow-x-auto p-4 rounded-xl bg-muted/30 border border-border max-w-full my-4 font-mono text-xs leading-relaxed whitespace-pre">
+      {children}
+    </pre>
+  ),
+  code: ({ className, children, ...props }: any) => {
+    const isInline = !className;
+    return isInline ? (
+      <code className="bg-muted/50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono text-[0.85em] text-foreground/90 break-all" {...props}>
+        {children}
+      </code>
+    ) : (
+      <code className="block w-full overflow-x-auto font-mono text-xs" {...props}>
+        {children}
+      </code>
+    );
+  },
+};
+
 export default function SummaryView() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("full");
 
   const { data: note, isLoading: noteLoading } = useQuery<Note>({
     queryKey: [`/api/notes/${id}`],
@@ -320,65 +347,14 @@ export default function SummaryView() {
     },
   });
 
-  const getSection = (content: string, sectionName: string) => {
-    if (!content) return "";
-    const name = sectionName.toLowerCase();
-    const lowerContent = content.toLowerCase();
-    
-    // Standardized keywords from the AI prompt
-    const kwOverview = "overview";
-    const kwSolution = "lesson_and_solution";
-    const kwLesson = "lesson"; // alternative
-    const kwTakeaways = "takeaways";
-    const kwKeyPoint = "key point";
-
-    // Find indices
-    const idxOverview = lowerContent.indexOf(kwOverview);
-    const idxSolution = lowerContent.indexOf(kwSolution) !== -1 
-        ? lowerContent.indexOf(kwSolution) 
-        : lowerContent.indexOf(kwLesson);
-    const idxTakeaways = lowerContent.indexOf(kwTakeaways) !== -1 
-        ? lowerContent.indexOf(kwTakeaways) 
-        : lowerContent.indexOf(kwKeyPoint);
-
-    const getStartOfBody = (idx: number) => {
-      if (idx === -1) return -1;
-      const nextNewline = content.indexOf("\n", idx);
-      return nextNewline === -1 ? idx + 30 : nextNewline + 1;
-    };
-
-    if (name === "overview") {
-      if (idxOverview === -1) return "";
-      const start = getStartOfBody(idxOverview);
-      const nextIdx = idxSolution !== -1 ? idxSolution : (idxTakeaways !== -1 ? idxTakeaways : content.length);
-      const piece = content.substring(start, nextIdx).trim();
-      return piece.replace(/[ \t]*#{1,6}\s*[\d.]*\s*$/, "").trim();
-    }
-    
-    if (name === "solution") {
-      if (idxSolution === -1) return "";
-      const start = getStartOfBody(idxSolution);
-      const nextIdx = idxTakeaways !== -1 ? idxTakeaways : content.length;
-      const piece = content.substring(start, nextIdx).trim();
-      return piece.replace(/[ \t]*#{1,6}\s*[\d.]*\s*$/, "").trim();
-    }
-    
-    if (name === "takeaways") {
-      if (idxTakeaways === -1) return "";
-      const start = getStartOfBody(idxTakeaways);
-      return content.substring(start).trim();
-    }
-    
-    return "";
-  };
 
 
 
 
 
 
-  // Default to the main lesson tab 
-  const defaultTab = "full";
+
+  // Render main guide directly
 
 
   if (noteLoading || summaryLoading) {
@@ -394,13 +370,8 @@ export default function SummaryView() {
             </div>
           </div>
 
-          {/* Tabs Navigation Skeleton */}
-          <div className="flex border-b border-border gap-6 pb-2">
-            <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-6 w-24" />
-            <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-6 w-28" />
-          </div>
+          {/* Spacer */}
+          <div className="h-px bg-border/40 w-full" />
 
           {/* Main Content Area Skeletons */}
           <div className="space-y-6">
@@ -439,6 +410,7 @@ export default function SummaryView() {
     );
   }
 
+
   return (
     <AppLayout>
       <main className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8 overflow-x-hidden">
@@ -457,176 +429,58 @@ export default function SummaryView() {
               title={note.title}
               subject={note.subject}
               getText={() => {
-                if (activeTab === "full") return summary.content || "";
-                if (activeTab === "snapshot") return getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0] || "";
-                if (activeTab === "takeaways") return (summary.keyPoints.length > 0 ? summary.keyPoints : []).join("\n");
-                if (activeTab === "raw") return note.content || "";
-                if (activeTab === "research" && (summary as any).topicExplanations) {
-                  return Object.entries((summary as any).topicExplanations).map(([topic, explanation]) => `${topic}\n${explanation}`).join("\n\n");
+                let text = summary.content || "";
+                if (summary.topicExplanations && Object.keys(summary.topicExplanations).length > 0) {
+                  text += "\n\n### Web Research & Deep-Dives\n";
+                  Object.entries(summary.topicExplanations).forEach(([topic, explanation]) => {
+                    text += `\n* **${topic}**: ${explanation}\n`;
+                  });
                 }
-                return summary.content || "";
+                return text;
               }}
             />
           )}
         </div>
 
         {summary && !error ? (
-          <Tabs defaultValue={defaultTab} className="space-y-6" onValueChange={setActiveTab}>
-            <div className="sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2 -mx-4 px-4 border-b">
-              <TabsList className="w-full justify-start overflow-x-auto no-scrollbar bg-transparent h-auto p-0 gap-6">
-                <TabsTrigger value="snapshot" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                  <Info className="h-4 w-4" /> Snapshot
-                </TabsTrigger>
-                <TabsTrigger value="takeaways" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                  <ListChecks className="h-4 w-4" /> Takeaways
-                </TabsTrigger>
-                {summary.topicExplanations && Object.keys(summary.topicExplanations).length > 0 && (
-                  <TabsTrigger value="research" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                    <Search className="h-4 w-4" /> Research
-                  </TabsTrigger>
-                )}
-                <TabsTrigger value="full" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Full Lesson
-                </TabsTrigger>
-                <TabsTrigger value="raw" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 flex items-center gap-2 text-muted-foreground">
-                  <Sparkles className="h-4 w-4" /> Source
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
+          <div className="space-y-8">
             <div id="summary-content-to-print">
-
-            <TabsContent value="full" className="mt-0">
               <Card className="border-none shadow-none bg-transparent w-full">
-                <CardContent className="p-0 w-full">
+                <CardContent className="p-0 w-full space-y-8">
                   <div className="prose prose-base dark:prose-invert max-w-none break-words [word-break:break-word] overflow-x-auto leading-relaxed text-foreground/90 w-full">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-6 -mx-1 px-1 w-full">
-                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
-                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
-                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
-                        pre: ({ children }) => (
-                          <pre className="overflow-x-auto p-4 rounded-xl bg-muted/30 border border-border max-w-full my-4 font-mono text-xs leading-relaxed whitespace-pre">
-                            {children}
-                          </pre>
-                        ),
-                        code: ({ className, children, ...props }) => {
-                          const isInline = !className;
-                          return isInline ? (
-                            <code className="bg-muted/50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono text-[0.85em] text-foreground/90 break-all" {...props}>
-                              {children}
-                            </code>
-                          ) : (
-                            <code className="block w-full overflow-x-auto font-mono text-xs" {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
+                      components={markdownComponents}
                     >
                       {summary.content}
                     </ReactMarkdown>
                   </div>
+
+                  {summary.topicExplanations && Object.keys(summary.topicExplanations).length > 0 && (
+                    <div className="mt-8 pt-8 border-t border-border/60">
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                        <Search className="h-5 w-5 text-primary" /> Web Research & Deep-Dives
+                      </h3>
+                      <div className="grid gap-4">
+                        {Object.entries(summary.topicExplanations).map(([topic, explanation], index) => (
+                          <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5">
+                            <CardHeader className="bg-primary/10 py-3">
+                              <h4 className="font-bold text-primary flex items-center gap-2">
+                                <Sparkles className="h-4 w-4" /> {topic}
+                              </h4>
+                            </CardHeader>
+                            <CardContent className="py-4">
+                              <p className="text-sm leading-relaxed text-foreground/80 italic">"{explanation}"</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="snapshot" className="mt-0">
-              <Card className="border-none shadow-none bg-transparent w-full">
-                <CardContent className="p-0 space-y-4 w-full">
-                  <div className="prose prose-base dark:prose-invert max-w-none break-words [word-break:break-word] overflow-x-auto leading-relaxed text-foreground/90 w-full">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-6 -mx-1 px-1 w-full">
-                            <table className="w-full border-collapse text-sm border border-border shadow-sm rounded-lg overflow-hidden">{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-                        tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
-                        th: ({ children }) => <th className="px-4 py-3 text-left font-bold text-foreground border-r border-border last:border-0">{children}</th>,
-                        td: ({ children }) => <td className="px-4 py-3 border-r border-border last:border-0 tabular-nums">{children}</td>,
-                        pre: ({ children }) => (
-                          <pre className="overflow-x-auto p-4 rounded-xl bg-muted/30 border border-border max-w-full my-4 font-mono text-xs leading-relaxed whitespace-pre">
-                            {children}
-                          </pre>
-                        ),
-                        code: ({ className, children, ...props }) => {
-                          const isInline = !className;
-                          return isInline ? (
-                            <code className="bg-muted/50 dark:bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono text-[0.85em] text-foreground/90 break-all" {...props}>
-                              {children}
-                            </code>
-                          ) : (
-                            <code className="block w-full overflow-x-auto font-mono text-xs" {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
-                    >
-                      {getSection(summary.content, "Overview") || summary.content.split(/[ \t]*#{1,6}\s*[\d.]*\s*LESSON_AND_SOLUTION/i)[0]}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="takeaways" className="mt-0">
-               <Card className="border-none shadow-none bg-transparent w-full">
-                <CardContent className="p-0 w-full">
-                  <ul className="space-y-4 w-full">
-                    {(summary.keyPoints.length > 0 ? summary.keyPoints : (getSection(summary.content, "Takeaways") || getSection(summary.content, "Key")).split("\n").filter(l => /^[*-•]/.test(l.trim()))).map((point: string, index: number) => (
-                      <li key={index} className="flex gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10 w-full min-w-0">
-                        <span className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
-                          {index + 1}
-                        </span>
-                        <span className="text-foreground/90 leading-snug break-words [word-break:break-word] w-full min-w-0">{point.replace(/^[-*•]\s+/, "")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-
-
-            {summary.topicExplanations && (
-              <TabsContent value="research" className="mt-0 space-y-4 w-full">
-                {Object.entries(summary.topicExplanations).map(([topic, explanation], index) => (
-                  <Card key={index} className="overflow-hidden border-primary/20 bg-primary/5 w-full">
-                    <CardHeader className="bg-primary/10 py-3 w-full min-w-0">
-                      <h4 className="font-bold text-primary flex items-center gap-2 break-words [word-break:break-word] w-full min-w-0">
-                        <Sparkles className="h-4 w-4 shrink-0" /> {topic}
-                      </h4>
-                    </CardHeader>
-                    <CardContent className="py-4 w-full min-w-0">
-                      <p className="text-sm leading-relaxed text-foreground/80 italic break-words [word-break:break-word] w-full min-w-0">"{explanation}"</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-            )}
-
-            <TabsContent value="raw" className="mt-0">
-              <Card className="w-full">
-                <CardContent className="p-4 bg-muted/30 w-full overflow-hidden">
-                  <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground font-mono leading-tight max-h-[60vh] overflow-y-auto w-full">
-                    {note.content}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
             </div>
-          </Tabs>
+          </div>
         ) : (
           !summaryLoading && (
             <Card className="border-dashed border-2">

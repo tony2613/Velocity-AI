@@ -5,14 +5,52 @@ import { blogPosts } from "./Blog";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
+import SEO from "@/components/SEO";
+import { useMemo } from "react";
 
 export default function BlogPost() {
   const [, params] = useRoute("/blog/:id");
   const post = blogPosts.find((p) => p.id === params?.id);
 
+  const postStructuredData = useMemo(() => {
+    if (!post) return undefined;
+    
+    let dateStr = "2026-08-10";
+    try {
+      const d = new Date(post.date);
+      if (!isNaN(d.getTime())) {
+        dateStr = d.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    return {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": post.title,
+      "datePublished": dateStr,
+      "description": post.summary,
+      "articleBody": post.content,
+      "publisher": {
+        "@type": "Organization",
+        "name": "VelocityAI",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://velocityai.app/pwa-192x192.png"
+        }
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "VelocityAI Team"
+      }
+    };
+  }, [post]);
+
   if (!post) {
     return (
       <div className="min-h-screen bg-background">
+        <SEO title="Post Not Found" description="The requested blog post was not found on VelocityAI." />
         <Navbar />
         <main className="max-w-3xl mx-auto px-4 py-20 text-center">
           <h1 className="text-2xl font-bold mb-4">Post not found</h1>
@@ -29,6 +67,12 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title={post.title}
+        description={post.summary}
+        canonicalPath={`/blog/${post.id}`}
+        structuredData={postStructuredData}
+      />
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <Link href="/blog">

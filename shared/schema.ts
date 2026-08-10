@@ -173,6 +173,7 @@ export const paymentRequests = pgTable("payment_requests", {
   amount: text("amount").notNull(),
   transactionId: text("transaction_id").notNull(),
   status: text("status").notNull().default("pending"),
+  refundReason: text("refund_reason"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -213,3 +214,25 @@ export const insertUserActiveSessionSchema = createInsertSchema(userActiveSessio
 
 export type InsertUserActiveSession = z.infer<typeof insertUserActiveSessionSchema>;
 export type UserActiveSession = typeof userActiveSessions.$inferSelect;
+
+export const bugReports = pgTable("bug_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  stepsToReproduce: text("steps_to_reproduce"),
+  severity: text("severity").notNull().default("low"),
+  status: text("status").notNull().default("open"),
+  deviceInfo: text("device_info"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertBugReportSchema = createInsertSchema(bugReports).omit({
+  id: true,
+  status: true,
+  createdAt: true,
+});
+
+export type InsertBugReport = z.infer<typeof insertBugReportSchema>;
+export type BugReport = typeof bugReports.$inferSelect;
+

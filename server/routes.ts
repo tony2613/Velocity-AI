@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { eq } from "drizzle-orm";
-import { insertNoteSchema, paymentRequests } from "@shared/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { insertNoteSchema, paymentRequests, bugReports } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
 import multer from "multer";
 
@@ -242,10 +242,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Unauthorized" });
       }
 
-      // Check if summary already exists
+      // Overwrite summary if it already exists to allow regeneration
       const existingSummary = await storage.getSummaryByNoteId(note.id);
       if (existingSummary) {
-        return res.json(existingSummary);
+        await storage.deleteSummaryByNoteId(note.id);
       }
 
       // Generate summary using selected model (includes topic research)
@@ -995,6 +995,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: `Switched to ${tier} tier`, tier });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET user's active/latest payment request
+  app.get("/api/payments/active", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const [latest] = await storage.db
+        .select()
+        .from(paymentRequests)
+        .where(eq(paymentRequests.userId, userId))
+        .orderBy(desc(paymentRequests.id))
+        .limit(1);
+      res.json(latest || null);
+    } catch (error) {
+      console.error("Active payment query error:", error);
+      res.status(500).json({ error: "Failed to fetch active payment" });
+    }
+  });
+
+  // POST refund request
+  app.post("/api/refund-request", isAuthenticated, async (req, res) => {
+    try {
+      const { reason } = req.body;
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({ error: "Refund reason is required" });
+      }
+
+      const userId = (req.user as any).id;
+      // Find the user's latest payment request that is approved
+      const [approvedPayment] = await storage.db
+        .select()
+        .from(paymentRequests)
+        .where(
+          and(
+            eq(paymentRequests.userId, userId),
+            eq(paymentRequests.status, "approved")
+          )
+        )
+        .orderBy(desc(paymentRequests.id))
+        .limit(1);
+
+      if (!approvedPayment) {
+        return res.status(400).json({ error: "No active approved subscription found to refund." });
+      }
+
+      // Update status to refund_pending and store reason
+      await storage.db
+        .update(paymentRequests)
+        .set({ status: "refund_pending", refundReason: reason })
+        .where(eq(paymentRequests.id, approvedPayment.id));
+
+      res.json({ message: "Refund request submitted successfully. Our team will review it." });
+    } catch (error) {
+      console.error("Refund request error:", error);
+      res.status(500).json({ error: "Failed to submit refund request" });
+    }
+  });
+
+  // POST bug report
+  app.post("/api/bug-reports", async (req, res) => {
+    try {
+      const { title, description, stepsToReproduce, severity } = req.body;
+      if (!title || !description) {
+        return res.status(400).json({ error: "Title and description are required" });
+      }
+
+      const userId = req.isAuthenticated() ? (req.user as any).id : null;
+      const deviceInfo = req.headers["user-agent"] || null;
+
+      await storage.db.insert(bugReports).values({
+        userId,
+        title,
+        description,
+        stepsToReproduce: stepsToReproduce || null,
+        severity: severity || "low",
+        deviceInfo
+      });
+
+      res.json({ message: "Bug report submitted successfully. Thank you for helping us improve Velocity AI!" });
+    } catch (error) {
+      console.error("Bug report error:", error);
+      res.status(500).json({ error: "Failed to submit bug report" });
     }
   });
 

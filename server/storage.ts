@@ -43,6 +43,7 @@ export interface IStorage {
 
   createSummary(summary: InsertSummary): Promise<Summary>;
   getSummaryByNoteId(noteId: string): Promise<Summary | undefined>;
+  deleteSummaryByNoteId(noteId: string): Promise<void>;
 
   createQuiz(quiz: InsertQuiz): Promise<Quiz>;
   getQuiz(id: string): Promise<Quiz | undefined>;
@@ -255,6 +256,10 @@ export class DatabaseStorage implements IStorage {
   async getSummaryByNoteId(noteId: string): Promise<Summary | undefined> {
     const [summary] = await db.select().from(summaries).where(eq(summaries.noteId, noteId));
     return summary;
+  }
+
+  async deleteSummaryByNoteId(noteId: string): Promise<void> {
+    await db.delete(summaries).where(eq(summaries.noteId, noteId));
   }
 
   async createQuiz(insertQuiz: InsertQuiz): Promise<Quiz> {
