@@ -38,9 +38,9 @@ async function executeWithRotation<T>(
             return await apiCall(key);
         } catch (error: any) {
             const status = error.response?.status;
-            // Retry on rate limit (429) if we have more keys left
-            if (status === 429 && i < keys.length - 1) {
-                console.warn(`[Gemini Rotation] Key ${i + 1} rate limited (429). Rotating to next key...`);
+            // Retry on rate limit (429) OR invalid key/auth errors (401, 403, 404) if we have more keys left
+            if ((status === 429 || status === 401 || status === 403 || status === 404) && i < keys.length - 1) {
+                console.warn(`[Gemini Rotation] Key ${i + 1} failed with ${status}. Rotating to next key...`);
                 lastError = error;
                 continue;
             }
@@ -131,7 +131,7 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
     }
     const url = "https://api.groq.com/openai/v1/chat/completions";
     const payload = {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: messages.map(m => ({
             role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
             content: m.content
@@ -139,7 +139,7 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
         temperature: 0.1
     };
     
-    console.log("[Groq Fallback] Sending request to Groq (llama-3.3-70b-versatile)...");
+    console.log("[Groq Fallback] Sending request to Groq (openai/gpt-oss-120b)...");
     const response = await axios.post(url, payload, {
         headers: { 
             'Content-Type': 'application/json',

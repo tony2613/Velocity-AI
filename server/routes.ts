@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { eq, desc, and } from "drizzle-orm";
-import { insertNoteSchema, paymentRequests, bugReports } from "@shared/schema";
+import { insertNoteSchema, paymentRequests, bugReports, contactMessages, insertContactMessageSchema } from "@shared/schema";
 import { extractTextFromPDF, extractTextFromImage, extractTextFromFile, generateSummary, extractTextFromPPT } from "./ocrSummarize";
 import multer from "multer";
 
@@ -1054,6 +1054,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST contact message
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const parsed = insertContactMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+      }
+
+      const { name, email, message } = parsed.data;
+
+      // Save to database
+      await storage.db.insert(contactMessages).values({
+        name,
+        email,
+        message,
+      });
+
+      // Send email notification using Resend
+      const adminEmail = process.env.CONTACT_EMAIL || "velocityai.app@gmail.com";
+      const subject = `VelocityAI Contact: ${name}`;
+      const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+          <h2 style="color: #4f46e5; margin-top: 0;">New Contact Form Message</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p><strong>Message:</strong></p>
+          <p style="white-space: pre-wrap; background-color: #f9fafb; padding: 15px; border-radius: 4px; border-left: 4px solid #4f46e5;">${message}</p>
+        </div>
+      `;
+
+      await sendEmail({
+        to: adminEmail,
+        subject,
+        html: emailHtml,
+      });
+
+      res.json({ message: "Message sent successfully!" });
+    } catch (error: any) {
+      console.error("Contact form submission error:", error);
+      res.status(500).json({ error: "Failed to send message. Please try again later." });
+    }
+  });
+
   // POST bug report
   app.post("/api/bug-reports", async (req, res) => {
     try {
@@ -1063,6 +1107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = req.isAuthenticated() ? (req.user as any).id : null;
+      const userEmail = req.isAuthenticated() ? (req.user as any).email : "Anonymous";
+      const username = req.isAuthenticated() ? (req.user as any).username : "Anonymous";
       const deviceInfo = req.headers["user-agent"] || null;
 
       await storage.db.insert(bugReports).values({
@@ -1072,6 +1118,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stepsToReproduce: stepsToReproduce || null,
         severity: severity || "low",
         deviceInfo
+      });
+
+      // Send email notification to admin
+      const adminEmail = process.env.CONTACT_EMAIL || "velocityai.app@gmail.com";
+      const subject = `[BUG REPORT] [${severity?.toUpperCase() || 'LOW'}] ${title}`;
+      const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+          <h2 style="color: #dc2626; margin-top: 0;">New Bug Report Submitted</h2>
+          <p><strong>Title:</strong> ${title}</p>
+          <p><strong>Severity:</strong> <span style="padding: 2px 8px; border-radius: 4px; background-color: ${severity === 'high' ? '#fee2e2' : severity === 'medium' ? '#fef3c7' : '#f3f4f6'}; color: ${severity === 'high' ? '#991b1b' : severity === 'medium' ? '#92400e' : '#374151'}; font-weight: bold;">${severity || 'low'}</span></p>
+          <p><strong>Reporter:</strong> ${username} (${userEmail})</p>
+          <p><strong>Reporter User ID:</strong> ${userId || 'N/A'}</p>
+          <p><strong>Device Info / User Agent:</strong> ${deviceInfo || 'Unknown'}</p>
+          
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          
+          <p><strong>Description:</strong></p>
+          <p style="white-space: pre-wrap; background-color: #f9fafb; padding: 15px; border-radius: 4px;">${description}</p>
+          
+          ${stepsToReproduce ? `
+            <p><strong>Steps to Reproduce:</strong></p>
+            <p style="white-space: pre-wrap; background-color: #f9fafb; padding: 15px; border-radius: 4px;">${stepsToReproduce}</p>
+          ` : ''}
+        </div>
+      `;
+
+      await sendEmail({
+        to: adminEmail,
+        subject,
+        html: emailHtml,
       });
 
       res.json({ message: "Bug report submitted successfully. Thank you for helping us improve Velocity AI!" });
