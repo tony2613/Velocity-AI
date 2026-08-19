@@ -11,6 +11,14 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/LanguageContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function UploadZone() {
   const [, setLocation] = useLocation();
@@ -23,6 +31,7 @@ export default function UploadZone() {
   const [audioData, setAudioData] = useState<string>("");
   const [audioFileName, setAudioFileName] = useState<string>("");
   const [fileType, setFileType] = useState<"pdf" | "ppt" | "image" | "text" | "audio" | "">();
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
 
   // Recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -88,6 +97,12 @@ export default function UploadZone() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, preferredModel }),
       });
+      if (response.status === 429) {
+        const errorData = await response.json().catch(() => ({}));
+        const err = new Error(errorData.error || "Free tier limit reached. Upgrade to continue.");
+        (err as Error & { limitReached?: boolean }).limitReached = true;
+        throw err;
+      }
       if (!response.ok) throw new Error("Failed to process file");
       return response.json();
     },
@@ -113,7 +128,11 @@ export default function UploadZone() {
         setLocation(`/summary/${data.note.id}`);
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error & { limitReached?: boolean }) => {
+      if (error.limitReached) {
+        setLimitModalOpen(true);
+        return;
+      }
       let message = error.message;
       if (message.includes("500") || message.includes("503") || message.includes("Failed to fetch")) {
         message = t("error.server_busy");
@@ -364,6 +383,25 @@ export default function UploadZone() {
   const isProcessing = processImageMutation.isPending || createNoteMutation.isPending;
 
   return (
+    <>
+    <Dialog open={limitModalOpen} onOpenChange={setLimitModalOpen}>
+      <DialogContent className="sm:max-w-md text-center">
+        <DialogHeader className="items-center">
+          <DialogTitle>Free Tier Limit Reached</DialogTitle>
+          <DialogDescription>
+            You&apos;ve used all your uploads for today on the free plan. Upgrade to continue processing PDFs and images.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col sm:flex-col gap-2">
+          <Button className="w-full" onClick={() => { setLimitModalOpen(false); setLocation("/pricing"); }}>
+            Upgrade to Continue
+          </Button>
+          <Button variant="ghost" className="w-full" onClick={() => setLimitModalOpen(false)}>
+            Maybe Later
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Card className="relative overflow-hidden max-w-full">
       {isProcessing && (
         <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-50">
@@ -721,5 +759,6 @@ export default function UploadZone() {
         </Tabs>
       </CardContent>
     </Card>
+    </>
   );
 }

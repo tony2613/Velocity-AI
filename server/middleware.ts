@@ -60,6 +60,7 @@ export const checkUsageLimit = async (req: any, res: any, next: any) => {
         if (user.dailyUploadCount >= limit) {
             return res.status(429).json({
                 error: `Daily usage limit reached for ${tier} plan. Upgrade for more.`,
+                limitReached: true,
                 limit,
                 tier
             });
