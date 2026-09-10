@@ -3,7 +3,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame } from "lucide-react";
+import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame, CalendarDays } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LIMITS } from "@shared/plans";
@@ -38,6 +38,11 @@ export default function Sidebar() {
       icon: Home
     },
     {
+      label: "Exam & Planner",
+      path: "/planner",
+      icon: CalendarDays
+    },
+    {
       label: "Study Guides",
       path: "/notes",
       icon: BookOpen
@@ -62,7 +67,9 @@ export default function Sidebar() {
         }`}>
           {isOpen ? (
             <Link href="/dashboard" className="flex items-center gap-2 cursor-pointer">
-              <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7 bg-white/10 p-0.5 rounded" />
+              <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
+                <img src={velocityLogo} alt="VelocityAI Logo" className="h-5 w-5 object-contain" />
+              </div>
               <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-primary to-indigo-400 bg-clip-text text-transparent">
                 VelocityAI
               </span>

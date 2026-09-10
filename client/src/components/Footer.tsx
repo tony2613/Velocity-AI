@@ -11,7 +11,9 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <img src={velocityLogo} alt="VelocityAI Logo" className="h-7 w-7 bg-white/10 p-0.5 rounded" />
+              <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-border/20 shrink-0">
+                <img src={velocityLogo} alt="VelocityAI Logo" className="h-6 w-6 object-contain" />
+              </div>
               <span className="text-lg font-semibold">VelocityAI</span>
             </div>
             <p className="text-sm text-muted-foreground">

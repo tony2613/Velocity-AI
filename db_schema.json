@@ -4,8 +4,40 @@
     "data_type": "timestamp without time zone"
   },
   {
+    "column_name": "is_admin",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "subscription_expires_at",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "monthly_search_count",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "last_monthly_search_date",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "streak_count",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "last_search_date",
+    "data_type": "timestamp without time zone"
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp without time zone"
+  },
+  {
     "column_name": "daily_upload_count",
     "data_type": "integer"
+  },
+  {
+    "column_name": "is_verified",
+    "data_type": "boolean"
   },
   {
     "column_name": "last_upload_date",
@@ -16,19 +48,7 @@
     "data_type": "integer"
   },
   {
-    "column_name": "last_search_date",
-    "data_type": "timestamp without time zone"
-  },
-  {
-    "column_name": "is_verified",
-    "data_type": "boolean"
-  },
-  {
     "column_name": "verification_token",
-    "data_type": "text"
-  },
-  {
-    "column_name": "reset_token",
     "data_type": "text"
   },
   {
@@ -50,5 +70,13 @@
   {
     "column_name": "id",
     "data_type": "character varying"
+  },
+  {
+    "column_name": "reset_token",
+    "data_type": "text"
+  },
+  {
+    "column_name": "google_id",
+    "data_type": "text"
   }
 ]

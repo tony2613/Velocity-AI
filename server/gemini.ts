@@ -162,7 +162,7 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
     return { content, usage };
 }
 
-export async function geminiChat(messages: { role: string; content: string }[], model: string = "gemini-2.5-flash"): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+export async function geminiChat(messages: { role: string; content: string }[], model: string = "gemini-1.5-flash"): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     try {
         return await executeWithRotation(async (key: string) => {
             try {
@@ -232,4 +232,169 @@ export async function geminiChat(messages: { role: string; content: string }[], 
         throw geminiError;
     }
 }
+
+export interface AdaptivePlanRequest {
+    examTitle: string;
+    examDate: string; // YYYY-MM-DD
+    subjects: string[];
+    dailyTargetMinutes: number;
+    weaknesses?: { subject: string; topic: string; scorePct: number }[];
+    missedTasks?: { subject: string; topic: string; targetDate: string }[];
+    isRebalance?: boolean;
+}
+
+export interface GeneratedPlanTask {
+    subject: string;
+    topic: string;
+    targetDate: string; // YYYY-MM-DD
+    durationMinutes: number;
+    priority: "high" | "medium" | "low";
+    notes: string;
+}
+
+export async function generateAdaptiveStudyPlan(
+    req: AdaptivePlanRequest
+): Promise<{ summary: string; tasks: GeneratedPlanTask[] }> {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const systemPrompt = `You are VelocityAI's elite Adaptive Study Planner engine.
+Your task is to generate a realistic, balanced, and highly adaptive daily study plan for a student preparing for an upcoming exam.
+
+Parameters:
+- Today's Date: ${todayStr}
+- Target Exam: ${req.examTitle} on ${req.examDate}
+- Subjects to cover: ${req.subjects.join(", ")}
+- Target Daily Study Time: ${req.dailyTargetMinutes} minutes
+- Known Weaknesses (give higher priority and more focus time to these topics): ${JSON.stringify(req.weaknesses || [])}
+- Previously Missed Tasks that need redistributing without burnout: ${JSON.stringify(req.missedTasks || [])}
+- Is Adaptive Rebalance: ${req.isRebalance ? "YES" : "NO"}
+
+Rules:
+1. Divide the available days starting from today (${todayStr}) until the day before the exam date (${req.examDate}).
+2. Distribute all subjects evenly, but prioritize subjects and sub-topics where weaknesses exist (high priority, 50-60 min blocks).
+3. If missed tasks exist, re-slot them logically into upcoming days without exceeding the daily target minutes.
+4. Reserve the final 1-2 days before the exam for "Comprehensive Revision & Mock Testing".
+5. Return strictly a JSON object with:
+   - "summary": A brief, inspiring 2-3 sentence overview of the strategy and focus areas.
+   - "tasks": Array of task objects:
+     {
+       "subject": "string",
+       "topic": "string (specific clear topic)",
+       "targetDate": "YYYY-MM-DD",
+       "durationMinutes": number (e.g. 30, 45, 60),
+       "priority": "high" | "medium" | "low",
+       "notes": "string (actionable study instruction or tip)"
+     }
+`;
+
+    const userMessage = `Generate the structured JSON daily study schedule now.`;
+
+    let generatedFromAI: { summary: string; tasks: GeneratedPlanTask[] } | null = null;
+
+    try {
+        const response = await geminiChat([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage }
+        ]);
+
+        let cleanText = response.content.trim();
+        if (cleanText.startsWith("```json")) {
+            cleanText = cleanText.substring(7);
+        } else if (cleanText.startsWith("```")) {
+            cleanText = cleanText.substring(3);
+        }
+        if (cleanText.endsWith("```")) {
+            cleanText = cleanText.slice(0, -3);
+        }
+        cleanText = cleanText.trim();
+
+        const parsed = JSON.parse(cleanText);
+        if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+            generatedFromAI = {
+                summary: parsed.summary || `Personalized study plan prepared for ${req.examTitle}`,
+                tasks: parsed.tasks
+            };
+        }
+    } catch (err: any) {
+        console.warn("[generateAdaptiveStudyPlan] AI generation failed or keys exhausted. Using deterministic adaptive fallback engine:", err.message);
+    }
+
+    if (generatedFromAI) {
+        return generatedFromAI;
+    }
+
+    // High-resilience algorithmic adaptive scheduler
+    const start = new Date();
+    const end = new Date(req.examDate);
+    const diffMs = end.getTime() - start.getTime();
+    const totalDays = Math.max(1, Math.min(60, Math.ceil(diffMs / (1000 * 60 * 60 * 24))));
+    const fallbackTasks: GeneratedPlanTask[] = [];
+
+    // Prioritize weak topics first if available
+    const weakList = req.weaknesses || [];
+    const missedList = req.missedTasks || [];
+
+    for (let i = 0; i < totalDays; i++) {
+        const date = new Date(start);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        // Reserve last day for final revision
+        if (i === totalDays - 1) {
+            fallbackTasks.push({
+                subject: req.subjects[0] || "General",
+                topic: "Comprehensive Mock Exam & Final Review",
+                targetDate: dateStr,
+                durationMinutes: Math.min(req.dailyTargetMinutes, 90),
+                priority: "high",
+                notes: "Review weak area flashcards and attempt a timed mock test."
+            });
+            continue;
+        }
+
+        // Check if there are missed tasks to re-slot
+        if (missedList.length > 0 && i < missedList.length) {
+            const missed = missedList[i];
+            fallbackTasks.push({
+                subject: missed.subject,
+                topic: `[Rescheduled] ${missed.topic}`,
+                targetDate: dateStr,
+                durationMinutes: Math.min(req.dailyTargetMinutes, 45),
+                priority: "high",
+                notes: "Catch-up session smoothly redistributed by adaptive engine."
+            });
+            continue;
+        }
+
+        // Allocate weak topics with high priority
+        if (weakList.length > 0 && i < weakList.length) {
+            const weak = weakList[i];
+            fallbackTasks.push({
+                subject: weak.subject,
+                topic: `Diagnostic Focus: ${weak.topic}`,
+                targetDate: dateStr,
+                durationMinutes: Math.min(req.dailyTargetMinutes, 50),
+                priority: "high",
+                notes: `Targeted improvement session (Current Mastery: ${weak.scorePct}%).`
+            });
+            continue;
+        }
+
+        // Standard balanced rotation
+        const subject = req.subjects[i % req.subjects.length] || "General";
+        fallbackTasks.push({
+            subject,
+            topic: `Core Modules & Active Recall - Part ${Math.floor(i / req.subjects.length) + 1}`,
+            targetDate: dateStr,
+            durationMinutes: Math.min(req.dailyTargetMinutes, 45),
+            priority: i % 2 === 0 ? "medium" : "low",
+            notes: "Study key concepts and test yourself with flashcards."
+        });
+    }
+
+    return {
+        summary: `Adaptive study plan generated across ${totalDays} days with focus on core curriculum and weak areas.`,
+        tasks: fallbackTasks
+    };
+}
+
 

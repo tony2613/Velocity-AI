@@ -151,12 +151,20 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold tracking-tight mb-1 text-foreground">{t("dash.title")}</h1>
             <p className="text-sm text-muted-foreground">{t("dash.subtitle")}</p>
           </div>
-          <Link href="/upload">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-2 self-start sm:self-auto transition-all hover:scale-[1.02]">
-              <Plus className="h-4 w-4" />
-              Upload Notes
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/planner">
+              <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Exam Planner
+              </Button>
+            </Link>
+            <Link href="/upload">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-2 transition-all hover:scale-[1.02]">
+                <Plus className="h-4 w-4" />
+                Upload Notes
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Tab Selection Bar */}

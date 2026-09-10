@@ -12,10 +12,14 @@ import {
   type InsertQuizAttempt,
   users, notes, summaries, quizzes, questions, quizAttempts, usageLogs, type InsertUsageLog,
   userActiveSessions, session, type UserActiveSession,
-  canaChats, type InsertCanaChat, type CanaChat
+  canaChats, type InsertCanaChat, type CanaChat,
+  exams, type InsertExam, type Exam,
+  studyPlans, type InsertStudyPlan, type StudyPlan,
+  studyTasks, type InsertStudyTask, type StudyTask,
+  topicMastery, type InsertTopicMastery, type TopicMastery
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -68,6 +72,28 @@ export interface IStorage {
   registerActiveSession(userId: string, deviceId: string, sessionId: string, userAgent: string | null): Promise<void>;
   getActiveSessions(userId: string): Promise<UserActiveSession[]>;
   deleteActiveSessionBySessionId(sessionId: string): Promise<void>;
+
+  // Exam Calendar & Adaptive Planner
+  createExam(exam: InsertExam): Promise<Exam>;
+  getExamsByUserId(userId: string): Promise<Exam[]>;
+  getExam(id: string): Promise<Exam | undefined>;
+  deleteExam(id: string, userId: string): Promise<void>;
+
+  createStudyPlan(plan: InsertStudyPlan): Promise<StudyPlan>;
+  getStudyPlanByExamId(examId: string): Promise<StudyPlan | undefined>;
+  getStudyPlansByUserId(userId: string): Promise<StudyPlan[]>;
+  updateStudyPlan(id: string, updates: Partial<StudyPlan>): Promise<StudyPlan | undefined>;
+
+  createStudyTasks(tasks: InsertStudyTask[]): Promise<StudyTask[]>;
+  getStudyTasksByPlanId(planId: string): Promise<StudyTask[]>;
+  getStudyTasksByUserId(userId: string): Promise<StudyTask[]>;
+  updateStudyTask(id: string, userId: string, updates: Partial<StudyTask>): Promise<StudyTask | undefined>;
+  deleteStudyTasksByPlanId(planId: string): Promise<void>;
+
+  // Weakness Tracking & Mastery
+  recordTopicMastery(mastery: InsertTopicMastery): Promise<TopicMastery>;
+  getTopicMasteriesByUserId(userId: string): Promise<TopicMastery[]>;
+  updateTopicMastery(userId: string, subject: string, topic: string, scorePct: number): Promise<TopicMastery>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -398,6 +424,124 @@ export class DatabaseStorage implements IStorage {
   async deleteActiveSessionBySessionId(sessionId: string): Promise<void> {
     await db.delete(userActiveSessions).where(eq(userActiveSessions.sessionId, sessionId));
   }
+
+  // --- Exam & Study Plan Implementations ---
+  async createExam(exam: InsertExam): Promise<Exam> {
+    const [created] = await db.insert(exams).values(exam).returning();
+    return created;
+  }
+
+  async getExamsByUserId(userId: string): Promise<Exam[]> {
+    return await db.select().from(exams).where(eq(exams.userId, userId)).orderBy(desc(exams.createdAt));
+  }
+
+  async getExam(id: string): Promise<Exam | undefined> {
+    const [exam] = await db.select().from(exams).where(eq(exams.id, id));
+    return exam;
+  }
+
+  async deleteExam(id: string, userId: string): Promise<void> {
+    const plans = await db.select().from(studyPlans).where(and(eq(studyPlans.examId, id), eq(studyPlans.userId, userId)));
+    for (const plan of plans) {
+      await db.delete(studyTasks).where(eq(studyTasks.planId, plan.id));
+    }
+    await db.delete(studyPlans).where(and(eq(studyPlans.examId, id), eq(studyPlans.userId, userId)));
+    await db.delete(exams).where(and(eq(exams.id, id), eq(exams.userId, userId)));
+  }
+
+  async createStudyPlan(plan: InsertStudyPlan): Promise<StudyPlan> {
+    const [created] = await db.insert(studyPlans).values(plan).returning();
+    return created;
+  }
+
+  async getStudyPlanByExamId(examId: string): Promise<StudyPlan | undefined> {
+    const [plan] = await db.select().from(studyPlans).where(eq(studyPlans.examId, examId)).orderBy(desc(studyPlans.createdAt));
+    return plan;
+  }
+
+  async getStudyPlansByUserId(userId: string): Promise<StudyPlan[]> {
+    return await db.select().from(studyPlans).where(eq(studyPlans.userId, userId)).orderBy(desc(studyPlans.createdAt));
+  }
+
+  async updateStudyPlan(id: string, updates: Partial<StudyPlan>): Promise<StudyPlan | undefined> {
+    const [updated] = await db.update(studyPlans).set({ ...updates, updatedAt: new Date() }).where(eq(studyPlans.id, id)).returning();
+    return updated;
+  }
+
+  async createStudyTasks(tasksToInsert: InsertStudyTask[]): Promise<StudyTask[]> {
+    if (tasksToInsert.length === 0) return [];
+    return await db.insert(studyTasks).values(tasksToInsert).returning();
+  }
+
+  async getStudyTasksByPlanId(planId: string): Promise<StudyTask[]> {
+    return await db.select().from(studyTasks).where(eq(studyTasks.planId, planId)).orderBy(studyTasks.targetDate);
+  }
+
+  async getStudyTasksByUserId(userId: string): Promise<StudyTask[]> {
+    return await db.select().from(studyTasks).where(eq(studyTasks.userId, userId)).orderBy(studyTasks.targetDate);
+  }
+
+  async updateStudyTask(id: string, userId: string, updates: Partial<StudyTask>): Promise<StudyTask | undefined> {
+    const [updated] = await db.update(studyTasks)
+      .set(updates)
+      .where(and(eq(studyTasks.id, id), eq(studyTasks.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteStudyTasksByPlanId(planId: string): Promise<void> {
+    await db.delete(studyTasks).where(eq(studyTasks.planId, planId));
+  }
+
+  // --- Weakness Tracking & Mastery Implementations ---
+  async recordTopicMastery(mastery: InsertTopicMastery): Promise<TopicMastery> {
+    const [created] = await db.insert(topicMastery).values(mastery).returning();
+    return created;
+  }
+
+  async getTopicMasteriesByUserId(userId: string): Promise<TopicMastery[]> {
+    return await db.select().from(topicMastery).where(eq(topicMastery.userId, userId)).orderBy(topicMastery.scorePct);
+  }
+
+  async updateTopicMastery(userId: string, subject: string, topic: string, scorePct: number): Promise<TopicMastery> {
+    const status = scorePct < 60 ? "weak" : scorePct < 85 ? "moderate" : "mastered";
+    const existing = await db.select().from(topicMastery).where(
+      and(
+        eq(topicMastery.userId, userId),
+        eq(topicMastery.subject, subject),
+        eq(topicMastery.topic, topic)
+      )
+    );
+
+    if (existing.length > 0) {
+      const current = existing[0];
+      const newAttempts = current.totalAttempts + 1;
+      // Exponential moving average score
+      const updatedScore = Math.round((current.scorePct * 0.4) + (scorePct * 0.6));
+      const [updated] = await db.update(topicMastery)
+        .set({
+          scorePct: updatedScore,
+          totalAttempts: newAttempts,
+          status: updatedScore < 60 ? "weak" : updatedScore < 85 ? "moderate" : "mastered",
+          lastTestedAt: new Date()
+        })
+        .where(eq(topicMastery.id, current.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(topicMastery).values({
+        userId,
+        subject,
+        topic,
+        scorePct,
+        totalAttempts: 1,
+        status,
+        lastTestedAt: new Date()
+      }).returning();
+      return created;
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();
+

@@ -30,6 +30,7 @@ import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import Tutorials from "@/pages/Tutorials";
 import Settings from "@/pages/Settings";
+import ExamPlannerPage from "@/pages/ExamPlannerPage";
 import Pricing from "@/pages/Pricing";
 import ResetPassword from "@/pages/ResetPassword";
 import { LanguageProvider } from "@/context/LanguageContext";
@@ -44,6 +45,8 @@ function Router() {
 
       {/* Protected Routes */}
       <ProtectedRoute path="/dashboard" component={Dashboard} />
+      <ProtectedRoute path="/planner" component={ExamPlannerPage} />
+      <ProtectedRoute path="/calendar" component={ExamPlannerPage} />
       <ProtectedRoute path="/notes" component={MyNotes} />
       <ProtectedRoute path="/summary/:id" component={SummaryView} />
       <ProtectedRoute path="/quiz/:id" component={QuizView} />

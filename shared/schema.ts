@@ -252,3 +252,83 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages).om
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
 
+// --- Exam Calendar, Adaptive Study Planning & Weakness Tracking ---
+
+export const exams = pgTable("exams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  examDate: timestamp("exam_date").notNull(),
+  subjects: text("subjects").array().notNull(), // list of subjects e.g. ["Math", "Physics", "Chemistry"]
+  dailyTargetMinutes: integer("daily_target_minutes").notNull().default(120),
+  color: text("color").default("#6366f1"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertExamSchema = createInsertSchema(exams).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertExam = z.infer<typeof insertExamSchema>;
+export type Exam = typeof exams.$inferSelect;
+
+export const studyPlans = pgTable("study_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  examId: varchar("exam_id").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("active"), // 'active' | 'completed' | 'archived'
+  aiSummary: text("ai_summary"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertStudyPlanSchema = createInsertSchema(studyPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertStudyPlan = z.infer<typeof insertStudyPlanSchema>;
+export type StudyPlan = typeof studyPlans.$inferSelect;
+
+export const studyTasks = pgTable("study_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planId: varchar("plan_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  subject: text("subject").notNull(),
+  topic: text("topic").notNull(),
+  targetDate: text("target_date").notNull(), // Format: YYYY-MM-DD
+  durationMinutes: integer("duration_minutes").notNull().default(45),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  priority: text("priority").notNull().default("medium"), // 'high' | 'medium' | 'low'
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertStudyTaskSchema = createInsertSchema(studyTasks).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertStudyTask = z.infer<typeof insertStudyTaskSchema>;
+export type StudyTask = typeof studyTasks.$inferSelect;
+
+export const topicMastery = pgTable("topic_mastery", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  subject: text("subject").notNull(),
+  topic: text("topic").notNull(),
+  scorePct: integer("score_pct").notNull().default(0), // 0 to 100
+  totalAttempts: integer("total_attempts").notNull().default(1),
+  status: text("status").notNull().default("weak"), // 'weak' | 'moderate' | 'mastered'
+  lastTestedAt: timestamp("last_tested_at").notNull().default(sql`now()`),
+});
+
+export const insertTopicMasterySchema = createInsertSchema(topicMastery).omit({
+  id: true,
+  lastTestedAt: true,
+});
+export type InsertTopicMastery = z.infer<typeof insertTopicMasterySchema>;
+export type TopicMastery = typeof topicMastery.$inferSelect;
+
+

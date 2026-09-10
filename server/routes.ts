@@ -720,6 +720,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         percentage,
       });
 
+      // Automatically sync with Weakness Tracking & Mastery Engine
+      try {
+        const userId = (req.user as any).id;
+        await storage.updateTopicMastery(
+          userId,
+          note.subject || "General",
+          note.title || "Quiz Practice",
+          percentage
+        );
+      } catch (masteryErr) {
+        console.error("Failed to auto-update topic mastery:", masteryErr);
+      }
+
       res.json(attempt);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1157,6 +1170,340 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Exam Calendar, Adaptive Planner & Weakness Tracking Endpoints
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // 1. Get all exams for current user
+  app.get("/api/exams", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const userExams = await storage.getExamsByUserId(userId);
+      res.json(userExams);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 2. Create new exam and optionally generate study plan
+  app.post("/api/exams", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, examDate, subjects, dailyTargetMinutes, color } = req.body;
+
+      if (!title || !examDate || !subjects || !Array.isArray(subjects) || subjects.length === 0) {
+        return res.status(400).json({ error: "Title, exam date, and at least one subject are required" });
+      }
+
+      const exam = await storage.createExam({
+        userId,
+        title,
+        examDate: new Date(examDate),
+        subjects,
+        dailyTargetMinutes: Number(dailyTargetMinutes) || 120,
+        color: color || "#6366f1",
+      });
+
+      // Fetch user weaknesses to customize plan
+      const userWeaknesses = await storage.getTopicMasteriesByUserId(userId);
+      const weakTopics = userWeaknesses
+        .filter(w => w.status === "weak" || w.scorePct < 60)
+        .map(w => ({ subject: w.subject, topic: w.topic, scorePct: w.scorePct }));
+
+      // Generate AI Adaptive Study Plan
+      const { generateAdaptiveStudyPlan } = await import("./gemini");
+      const generated = await generateAdaptiveStudyPlan({
+        examTitle: title,
+        examDate: new Date(examDate).toISOString().split("T")[0],
+        subjects,
+        dailyTargetMinutes: Number(dailyTargetMinutes) || 120,
+        weaknesses: weakTopics,
+        isRebalance: false
+      });
+
+      // Save Study Plan
+      const plan = await storage.createStudyPlan({
+        userId,
+        examId: exam.id,
+        title: `${title} Study Roadmap`,
+        status: "active",
+        aiSummary: generated.summary,
+      });
+
+      // Save Study Tasks
+      const tasksToInsert = generated.tasks.map(t => ({
+        planId: plan.id,
+        userId,
+        subject: t.subject,
+        topic: t.topic,
+        targetDate: t.targetDate,
+        durationMinutes: t.durationMinutes || 45,
+        priority: t.priority || "medium",
+        notes: t.notes || "",
+        isCompleted: false,
+      }));
+
+      const createdTasks = await storage.createStudyTasks(tasksToInsert);
+
+      res.status(201).json({
+        exam,
+        plan,
+        tasks: createdTasks
+      });
+    } catch (error: any) {
+      console.error("Create exam error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 3. Delete Exam
+  app.delete("/api/exams/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteExam(req.params.id, userId);
+      res.json({ message: "Exam and associated plans deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 4. Get active study plan & tasks for an exam or all user tasks
+  app.get("/api/study-tasks", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { planId } = req.query;
+
+      let tasks;
+      if (planId) {
+        tasks = await storage.getStudyTasksByPlanId(planId as string);
+      } else {
+        tasks = await storage.getStudyTasksByUserId(userId);
+      }
+      res.json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a new custom task / topic in plan
+  app.post("/api/study-tasks", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { planId, subject, topic, targetDate, durationMinutes, priority, notes } = req.body;
+
+      if (!subject || !topic || !targetDate) {
+        return res.status(400).json({ error: "Subject, topic, and targetDate are required" });
+      }
+
+      let activePlanId = planId;
+      if (!activePlanId) {
+        const plans = await storage.getStudyPlansByUserId(userId);
+        if (plans.length > 0) {
+          activePlanId = plans[0].id;
+        } else {
+          const defaultPlan = await storage.createStudyPlan({
+            userId,
+            examId: "custom",
+            title: "My Custom Study Roadmap",
+            status: "active"
+          });
+          activePlanId = defaultPlan.id;
+        }
+      }
+
+      const [createdTask] = await storage.createStudyTasks([{
+        planId: activePlanId,
+        userId,
+        subject,
+        topic,
+        targetDate,
+        durationMinutes: Number(durationMinutes) || 45,
+        priority: priority || "medium",
+        notes: notes || "",
+        isCompleted: false
+      }]);
+
+      res.status(201).json(createdTask);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 5. Update study task (toggle completed, edit notes)
+  app.patch("/api/study-tasks/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { isCompleted, notes } = req.body;
+
+      const updates: any = {};
+      if (typeof isCompleted === "boolean") {
+        updates.isCompleted = isCompleted;
+        updates.completedAt = isCompleted ? new Date() : null;
+      }
+      if (typeof notes === "string") {
+        updates.notes = notes;
+      }
+
+      const updated = await storage.updateStudyTask(req.params.id, userId, updates);
+      if (!updated) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 6. Adaptive Rebalance Endpoint (When student misses days or wants AI plan adjustment)
+  app.post("/api/study-plan/:examId/rebalance", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { examId } = req.params;
+
+      const exam = await storage.getExam(examId);
+      if (!exam || exam.userId !== userId) {
+        return res.status(404).json({ error: "Exam not found" });
+      }
+
+      let plan = await storage.getStudyPlanByExamId(examId);
+      if (!plan) {
+        plan = await storage.createStudyPlan({
+          userId,
+          examId,
+          title: `${exam.title} Adaptive Roadmap`,
+          status: "active"
+        });
+      }
+
+      // Fetch existing tasks & find missed/uncompleted past tasks
+      const allTasks = await storage.getStudyTasksByPlanId(plan.id);
+      const todayStr = new Date().toISOString().split("T")[0];
+      const missedTasks = allTasks
+        .filter(t => !t.isCompleted && t.targetDate < todayStr)
+        .map(t => ({ subject: t.subject, topic: t.topic, targetDate: t.targetDate }));
+
+      // Fetch user weaknesses
+      const userWeaknesses = await storage.getTopicMasteriesByUserId(userId);
+      const weakTopics = userWeaknesses
+        .filter(w => w.status === "weak" || w.scorePct < 65)
+        .map(w => ({ subject: w.subject, topic: w.topic, scorePct: w.scorePct }));
+
+      // Call Gemini Adaptive Engine
+      const { generateAdaptiveStudyPlan } = await import("./gemini");
+      const generated = await generateAdaptiveStudyPlan({
+        examTitle: exam.title,
+        examDate: new Date(exam.examDate).toISOString().split("T")[0],
+        subjects: exam.subjects,
+        dailyTargetMinutes: exam.dailyTargetMinutes,
+        weaknesses: weakTopics,
+        missedTasks,
+        isRebalance: true
+      });
+
+      // Clear upcoming uncompleted tasks and replace with newly balanced schedule
+      const completedTasks = allTasks.filter(t => t.isCompleted);
+      await storage.deleteStudyTasksByPlanId(plan.id);
+
+      // Re-insert completed tasks to preserve history
+      if (completedTasks.length > 0) {
+        await storage.createStudyTasks(completedTasks.map(t => ({
+          planId: plan!.id,
+          userId,
+          subject: t.subject,
+          topic: t.topic,
+          targetDate: t.targetDate,
+          durationMinutes: t.durationMinutes,
+          priority: t.priority,
+          notes: t.notes,
+          isCompleted: true,
+          completedAt: t.completedAt
+        })));
+      }
+
+      // Insert newly balanced upcoming tasks
+      const upcomingTasks = generated.tasks.map(t => ({
+        planId: plan!.id,
+        userId,
+        subject: t.subject,
+        topic: t.topic,
+        targetDate: t.targetDate,
+        durationMinutes: t.durationMinutes || 45,
+        priority: t.priority || "medium",
+        notes: t.notes || "",
+        isCompleted: false,
+      }));
+
+      const newTasks = await storage.createStudyTasks(upcomingTasks);
+
+      await storage.updateStudyPlan(plan.id, {
+        aiSummary: `Plan adapted on ${new Date().toLocaleDateString()}: ${generated.summary}`
+      });
+
+      res.json({
+        message: "Study plan successfully rebalanced!",
+        aiSummary: generated.summary,
+        tasksCount: newTasks.length + completedTasks.length
+      });
+    } catch (error: any) {
+      console.error("Plan rebalance error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 7. Weakness Tracking & Mastery Endpoints
+  app.get("/api/weakness-tracking", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const masteries = await storage.getTopicMasteriesByUserId(userId);
+      
+      // Calculate aggregate stats
+      const totalTopics = masteries.length;
+      const weakCount = masteries.filter(m => m.status === "weak" || m.scorePct < 60).length;
+      const moderateCount = masteries.filter(m => m.status === "moderate" || (m.scorePct >= 60 && m.scorePct < 85)).length;
+      const masteredCount = masteries.filter(m => m.status === "mastered" || m.scorePct >= 85).length;
+      const avgScore = totalTopics > 0 
+        ? Math.round(masteries.reduce((sum, m) => sum + m.scorePct, 0) / totalTopics)
+        : 0;
+
+      res.json({
+        masteries,
+        stats: {
+          totalTopics,
+          weakCount,
+          moderateCount,
+          masteredCount,
+          avgScore
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Record / Update mastery directly
+  app.post("/api/weakness-tracking", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { subject, topic, scorePct } = req.body;
+
+      if (!subject || !topic || scorePct === undefined) {
+        return res.status(400).json({ error: "Subject, topic, and scorePct are required" });
+      }
+
+      const mastery = await storage.updateTopicMastery(
+        userId,
+        subject,
+        topic,
+        Math.max(0, Math.min(100, Number(scorePct)))
+      );
+
+      res.json(mastery);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
-}
+}
