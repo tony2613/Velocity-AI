@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +16,7 @@ if (!fs.existsSync(svgSource)) {
 }
 
 async function run() {
-  console.log('--- Generating All Application Icons and Splash Screens ---');
+  console.log('--- Generating All Application Icons, Google Favicons, and Splash Screens ---');
   
   // 1. Prepare master trimmed logo buffer
   const trimmedMaster = await sharp(svgSource).trim().toBuffer();
@@ -72,7 +73,43 @@ async function run() {
     console.log(`✓ Generated: ${path.relative(rootDir, destPath)}`);
   }
 
-  // --- 1. PWA & Web Assets ---
+  // --- 1. Google-Compliant Favicons (Multiples of 48px square) ---
+  console.log('\nGenerating Google-Compliant Favicons (48px multiples)...');
+  
+  // favicon-48x48.png (Exact Google Search base size)
+  const fav48 = await createIcon({ width: 48, height: 48, logoRatio: 0.88 });
+  safeWrite(path.join(rootDir, 'client', 'public', 'favicon-48x48.png'), fav48);
+
+  // favicon-96x96.png (48 x 2)
+  const fav96 = await createIcon({ width: 96, height: 96, logoRatio: 0.88 });
+  safeWrite(path.join(rootDir, 'client', 'public', 'favicon-96x96.png'), fav96);
+
+  // favicon-144x144.png (48 x 3)
+  const fav144 = await createIcon({ width: 144, height: 144, logoRatio: 0.88 });
+  safeWrite(path.join(rootDir, 'client', 'public', 'favicon-144x144.png'), fav144);
+
+  // favicon.png (192x192, 48 x 4)
+  const fav192 = await createIcon({ width: 192, height: 192, logoRatio: 0.88 });
+  safeWrite(path.join(rootDir, 'client', 'public', 'favicon.png'), fav192);
+
+  // favicon.svg (tightly trimmed SVG for modern browsers)
+  let svgContent = fs.readFileSync(svgSource, 'utf8');
+  svgContent = svgContent.replace(/viewBox="[^"]+"/, 'viewBox="191 1861 4299 2891"');
+  safeWrite(path.join(rootDir, 'client', 'public', 'favicon.svg'), Buffer.from(svgContent, 'utf8'));
+
+  // Generate multi-size favicon.ico using python PIL helper
+  try {
+    const makeIcoScript = path.join(rootDir, 'scripts', 'make_ico.py');
+    const fav48Path = path.join(rootDir, 'client', 'public', 'favicon-48x48.png');
+    const icoPath = path.join(rootDir, 'client', 'public', 'favicon.ico');
+    execSync(`python "${makeIcoScript}" "${fav48Path}" "${icoPath}"`);
+    console.log(`✓ Generated: client/public/favicon.ico (multi-size: 16x16, 32x32, 48x48)`);
+  } catch (err) {
+    console.warn('Could not generate multi-size ICO with Python, copying 48x48 PNG as fallback:', err.message);
+    safeWrite(path.join(rootDir, 'client', 'public', 'favicon.ico'), fav48);
+  }
+
+  // --- 2. PWA & Web Assets ---
   console.log('\nGenerating Web & PWA assets...');
   
   // pwa-192x192.png (transparent)
@@ -83,7 +120,7 @@ async function run() {
   const pwa512 = await createIcon({ width: 512, height: 512, logoRatio: 0.72 });
   safeWrite(path.join(rootDir, 'client', 'public', 'pwa-512x512.png'), pwa512);
 
-  // pwa-maskable-512x512.png (white bg, 60% safe-zone)
+  // pwa-maskable-512x512.png (white bg, 58% safe-zone)
   const pwaMaskable512 = await createIcon({ 
     width: 512, 
     height: 512, 
@@ -104,13 +141,21 @@ async function run() {
   // Also update dist/public if exists
   const distPublic = path.join(rootDir, 'dist', 'public');
   if (fs.existsSync(distPublic)) {
+    safeWrite(path.join(distPublic, 'favicon-48x48.png'), fav48);
+    safeWrite(path.join(distPublic, 'favicon-96x96.png'), fav96);
+    safeWrite(path.join(distPublic, 'favicon-144x144.png'), fav144);
+    safeWrite(path.join(distPublic, 'favicon.png'), fav192);
+    safeWrite(path.join(distPublic, 'favicon.svg'), Buffer.from(svgContent, 'utf8'));
+    if (fs.existsSync(path.join(rootDir, 'client', 'public', 'favicon.ico'))) {
+      safeWrite(path.join(distPublic, 'favicon.ico'), fs.readFileSync(path.join(rootDir, 'client', 'public', 'favicon.ico')));
+    }
     safeWrite(path.join(distPublic, 'pwa-192x192.png'), pwa192);
     safeWrite(path.join(distPublic, 'pwa-512x512.png'), pwa512);
     safeWrite(path.join(distPublic, 'pwa-maskable-512x512.png'), pwaMaskable512);
     safeWrite(path.join(distPublic, 'apple-touch-icon.png'), appleTouchIcon);
   }
 
-  // --- 2. Android Splash Screens (Capacitor) ---
+  // --- 3. Android Splash Screens (Capacitor) ---
   console.log('\nGenerating Android Splash Screens...');
   const splashScreens = [
     { file: 'android/app/src/main/res/drawable/splash.png', width: 480, height: 320, ratio: 0.35 },
@@ -136,7 +181,7 @@ async function run() {
     safeWrite(path.join(rootDir, s.file), splashBuf);
   }
 
-  // --- 3. Android Mipmap Launcher Icons ---
+  // --- 4. Android Mipmap Launcher Icons ---
   console.log('\nGenerating Android Mipmap Icons...');
   const mipmaps = [
     { dir: 'mipmap-mdpi', iconSize: 48, fgSize: 108 },
@@ -147,7 +192,6 @@ async function run() {
   ];
 
   for (const m of mipmaps) {
-    // ic_launcher.png (square with white bg)
     const iconBuf = await createIcon({
       width: m.iconSize,
       height: m.iconSize,
@@ -156,7 +200,6 @@ async function run() {
     });
     safeWrite(path.join(rootDir, 'android/app/src/main/res', m.dir, 'ic_launcher.png'), iconBuf);
 
-    // ic_launcher_round.png (circular with white bg)
     const iconRoundBuf = await createIcon({
       width: m.iconSize,
       height: m.iconSize,
@@ -166,7 +209,6 @@ async function run() {
     });
     safeWrite(path.join(rootDir, 'android/app/src/main/res', m.dir, 'ic_launcher_round.png'), iconRoundBuf);
 
-    // ic_launcher_foreground.png (transparent foreground for adaptive icon, safe-zone ~56%)
     const fgBuf = await createIcon({
       width: m.fgSize,
       height: m.fgSize,
@@ -176,15 +218,19 @@ async function run() {
     safeWrite(path.join(rootDir, 'android/app/src/main/res', m.dir, 'ic_launcher_foreground.png'), fgBuf);
   }
 
-  // --- 4. Android web assets sync (if public assets folder exists) ---
+  // --- 5. Android web assets sync ---
   const androidPublicAssets = path.join(rootDir, 'android/app/src/main/assets/public/public');
   if (fs.existsSync(androidPublicAssets)) {
     console.log('\nSyncing to Android web assets directory...');
     safeWrite(path.join(androidPublicAssets, 'pwa-192x192.png'), pwa192);
     safeWrite(path.join(androidPublicAssets, 'pwa-512x512.png'), pwa512);
+    safeWrite(path.join(androidPublicAssets, 'favicon.png'), fav192);
+    if (fs.existsSync(path.join(rootDir, 'client', 'public', 'favicon.ico'))) {
+      safeWrite(path.join(androidPublicAssets, 'favicon.ico'), fs.readFileSync(path.join(rootDir, 'client', 'public', 'favicon.ico')));
+    }
   }
 
-  console.log('\n All icons and splash screens successfully updated with the new VelocityAI logo!');
+  console.log('\n All assets, Google-compliant favicons, and splash screens successfully generated!');
 }
 
 run().catch(err => {

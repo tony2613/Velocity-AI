@@ -9,7 +9,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'favicon.ico', 'apple-touch-icon.png'],
+      includeAssets: [
+        'favicon.ico',
+        'favicon.svg',
+        'favicon-48x48.png',
+        'favicon-96x96.png',
+        'favicon-144x144.png',
+        'favicon.png',
+        'apple-touch-icon.png'
+      ],
       manifest: {
         name: 'VelocityAI - AI Study Companion',
         short_name: 'VelocityAI',

@@ -37,7 +37,7 @@ export default function BlogPost() {
         "name": "VelocityAI",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://velocityai.app/pwa-192x192.png"
+          "url": "https://velocityaisoftware.app/pwa-512x512.png"
         }
       },
       "author": {

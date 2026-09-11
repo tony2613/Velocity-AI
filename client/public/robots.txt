@@ -10,4 +10,4 @@ Disallow: /quiz/
 Disallow: /quizzes
 Disallow: /auth
 
-Sitemap: https://velocityai.app/sitemap.xml
+Sitemap: https://velocityaisoftware.app/sitemap.xml

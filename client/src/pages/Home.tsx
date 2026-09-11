@@ -21,7 +21,8 @@ const homeStructuredData = {
   author: {
     "@type": "Organization",
     name: "VelocityAI",
-    url: "https://velocityai.app",
+    url: "https://velocityaisoftware.app",
+    logo: "https://velocityaisoftware.app/pwa-512x512.png",
   },
 };
 

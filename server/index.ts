@@ -28,7 +28,21 @@ app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
 // Serve uploads directory 
 import path from "path";
+import fs from "fs";
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// Direct handler for /favicon.ico for Googlebot & standard browser requests
+app.get("/favicon.ico", (_req, res) => {
+  const prodIco = path.resolve(process.cwd(), "dist", "public", "favicon.ico");
+  const devIco = path.resolve(process.cwd(), "client", "public", "favicon.ico");
+  const target = fs.existsSync(prodIco) ? prodIco : devIco;
+  if (fs.existsSync(target)) {
+    res.setHeader("Content-Type", "image/x-icon");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.sendFile(target);
+  }
+  res.status(404).end();
+});
 
 // request logger that captures JSON responses
 app.use((req, res, next) => {

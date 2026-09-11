@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 const SITE_NAME = "VelocityAI";
-const SITE_URL = "https://velocityai.app";
+const SITE_URL = "https://velocityaisoftware.app";
 const DEFAULT_OG_IMAGE = "/pwa-512x512.png";
 const DEFAULT_DESCRIPTION =
     "Transform your study notes into AI-powered summaries and quizzes. VelocityAI helps students learn smarter with affordable AI-driven study tools.";
