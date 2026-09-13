@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -39,8 +39,19 @@ const Tutorials = lazy(() => import("@/pages/Tutorials"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
-// Lazy-loaded CANA floating chat assistant
+// Lazy-loaded CANA floating chat assistant - only loaded when needed on dashboard or summary
 const FloatingCana = lazy(() => import("./components/FloatingCana"));
+
+function FloatingCanaWrapper() {
+  const [location] = useLocation();
+  const isAllowed = location === "/dashboard" || location.startsWith("/summary/");
+  if (!isAllowed) return null;
+  return (
+    <Suspense fallback={null}>
+      <FloatingCana />
+    </Suspense>
+  );
+}
 
 function PageLoader() {
   return (
@@ -101,9 +112,7 @@ function App() {
             <TooltipProvider>
               <SidebarProvider>
                 <GlobalStudyTimer />
-                <Suspense fallback={null}>
-                  <FloatingCana />
-                </Suspense>
+                <FloatingCanaWrapper />
                 <IosInstallPrompt />
                 <Toaster />
                 <Router />
