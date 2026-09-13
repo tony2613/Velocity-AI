@@ -12,9 +12,9 @@ export default function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-border/20 shrink-0">
-                <img src={velocityLogo} alt="VelocityAI Logo" className="h-6 w-6 object-contain" />
+                <img src={velocityLogo} alt="Velocity AI Logo" className="h-6 w-6 object-contain" />
               </div>
-              <span className="text-lg font-semibold">VelocityAI</span>
+              <span className="text-lg font-semibold">Velocity AI</span>
             </div>
             <p className="text-sm text-muted-foreground">
               {t("footer.slogan")}

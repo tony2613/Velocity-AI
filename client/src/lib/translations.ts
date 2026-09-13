@@ -127,16 +127,16 @@ export const translations: Record<Language, Record<string, string>> = {
 
         "hero.badge": "Velocity AI — AI-Powered Learning",
         "hero.title": "Velocity AI: Your Exam-Focused Study Engine",
-        "hero.subtitle": "Transform your notes into AI-powered summaries and quizzes. Learn faster and retain more with our affordable AI study assistant.",
+        "hero.subtitle": "Transform your notes into AI-powered summaries and quizzes. Velocity AI (VelocityAI) helps you learn faster and retain more with affordable AI study tools.",
         "hero.cta_primary": "Get Started Free",
         "hero.cta_secondary": "How It Works",
 
         "how.title": "How It Works",
         "how.subtitle": "Three simple steps to transform your study routine",
         "how.step1.title": "Upload Your Notes",
-        "how.step1.desc": "Paste text or upload PDF, TXT, or DOCX files. Organize by subject or class.",
-        "how.step2.title": "AI Summarizes",
-        "how.step2.desc": "Our AI instantly generates clear summaries with key concepts and bullet points.",
+        "how.step1.desc": "Upload PDFs, lecture slides, or type directly into the app.",
+        "how.step2.title": "AI Processing",
+        "how.step2.desc": "Our AI analyzes and generates concise summaries with key concepts.",
         "how.step3.title": "Practice & Learn",
         "how.step3.desc": "Take AI-generated quizzes to test your knowledge and reinforce learning.",
 
@@ -161,7 +161,7 @@ export const translations: Record<Language, Record<string, string>> = {
         "feature.pricing.title": "Affordable Pricing",
         "feature.pricing.desc": "Access powerful AI study tools for little to no money. Premium features at student-friendly prices.",
 
-        "footer.slogan": "AI-powered study tools for students who want to learn smarter.",
+        "footer.slogan": "The official Velocity AI study platform for students who want to learn smarter with AI-driven notes, summaries, and quizzes.",
         "footer.features": "Features",
         "footer.resources": "Resources",
         "footer.legal": "Legal",
