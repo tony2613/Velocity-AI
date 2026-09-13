@@ -25,6 +25,9 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.summarization.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.quiz.title")}</a></Link></li>
+              <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.calendar.title")}</a></Link></li>
+              <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.planner.title")}</a></Link></li>
+              <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.weakness.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.org.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.export.title")}</a></Link></li>
             </ul>

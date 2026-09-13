@@ -22,7 +22,7 @@ export interface BlogPostItem {
 }
 
 export const SITE_URL = "https://velocityaisoftware.app";
-export const SITE_NAME = "VelocityAI";
+export const SITE_NAME = "Velocity AI";
 export const LINKEDIN_URL = "https://www.linkedin.com/company/velocityai-software";
 
 export const FEATURES: FeatureItem[] = [
@@ -174,6 +174,7 @@ export function getSoftwareApplicationSchema() {
         "@type": "SoftwareApplication",
         "@id": `${SITE_URL}/#software`,
         name: SITE_NAME,
+        alternateName: ["VelocityAI", "Velocity AI Software", "velocityaisoftware.app"],
         url: SITE_URL,
         applicationCategory: "EducationalApplication",
         operatingSystem: "Web, iOS, Android, macOS, Windows",
@@ -213,6 +214,8 @@ export function getSoftwareApplicationSchema() {
         "@type": "Organization",
         "@id": `${SITE_URL}/#organization`,
         name: SITE_NAME,
+        legalName: "VelocityAI Software",
+        alternateName: ["VelocityAI", "Velocity-AI", "Velocity AI Software"],
         url: SITE_URL,
         logo: `${SITE_URL}/pwa-512x512.png`,
         sameAs: [LINKEDIN_URL],
@@ -220,8 +223,9 @@ export function getSoftwareApplicationSchema() {
       {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
-        url: SITE_URL,
+        url: `${SITE_URL}/`,
         name: SITE_NAME,
+        alternateName: ["VelocityAI", "Velocity AI Software", "velocityaisoftware.app"],
         publisher: {
           "@id": `${SITE_URL}/#organization`,
         },
@@ -508,9 +512,9 @@ export function getPageSeoData(pathname: string) {
 
   // 5. Default Homepage
   return {
-    title: "VelocityAI – Your Exam-Focused Study Engine",
+    title: "Velocity AI (VelocityAI) – Official Website | AI Study Engine & Exam Prep",
     description:
-      "Transform textbooks, lecture slides, and notes into AI summaries, active recall practice quizzes, and adaptive exam schedules. Rank higher and master your exams with VelocityAI.",
+      "The official Velocity AI (VelocityAI) study engine. Transform lecture notes, textbooks, and PDFs into AI summaries, active recall quizzes, and adaptive exam schedules.",
     canonicalUrl: `${SITE_URL}/`,
     structuredData: getSoftwareApplicationSchema(),
     prerenderHtml: null, // Keep existing highly optimized HeroSection skeleton
