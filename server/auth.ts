@@ -374,7 +374,7 @@ export function setupAuth(app: Express) {
     });
 
     app.get("/api/user", (req, res) => {
-        if (!req.isAuthenticated()) return res.sendStatus(401);
+        if (!req.isAuthenticated()) return res.json(null);
         res.json(req.user);
     });
 }

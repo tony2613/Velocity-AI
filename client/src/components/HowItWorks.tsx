@@ -43,7 +43,7 @@ export default function HowItWorks() {
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                     <step.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <span className="text-4xl font-bold text-muted-foreground/20">{step.number}</span>
+                  <span aria-hidden="true" className="text-4xl font-extrabold text-muted-foreground">{step.number}</span>
                 </div>
                 <h3 className="text-xl font-semibold">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>

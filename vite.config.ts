@@ -4,11 +4,27 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+function deferCssPlugin() {
+  return {
+    name: "defer-css-plugin",
+    apply: "build" as const,
+    enforce: "post" as const,
+    transformIndexHtml(html: string) {
+      return html.replace(
+        /<link rel="stylesheet" crossorigin href="([^"]+\.css)">/g,
+        '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'">\n  <noscript><link rel="stylesheet" href="$1"></noscript>'
+      );
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    deferCssPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: null,
       includeAssets: [
         'favicon.ico',
         'favicon.svg',
