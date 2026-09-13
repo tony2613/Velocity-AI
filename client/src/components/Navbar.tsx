@@ -86,6 +86,7 @@ export default function Navbar() {
             variant="ghost"
             size="icon"
             onClick={toggleMobile}
+            aria-label="Toggle navigation menu"
             className="w-12 h-12 rounded-[1rem] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 flex items-center justify-center text-foreground hover:bg-white dark:hover:bg-zinc-900 transition-all duration-300 hover:scale-105 active:scale-95"
             data-testid="button-sidebar-toggle-mobile"
           >
