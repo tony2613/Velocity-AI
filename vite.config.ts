@@ -69,8 +69,28 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
+    target: "es2022",
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [
+            "react",
+            "react-dom",
+            "wouter",
+            "@tanstack/react-query",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-toast",
+            "@radix-ui/react-tooltip",
+            "class-variance-authority",
+            "tailwind-merge",
+            "clsx",
+          ],
+        },
+      },
+    },
   },
   server: {
     fs: {

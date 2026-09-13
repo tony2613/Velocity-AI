@@ -2,9 +2,17 @@ import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import { useSidebar } from "@/context/SidebarContext";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isOpen, close } = useSidebar();
+  const { isOpen, isMobileOpen, closeMobile } = useSidebar();
+  const [location] = useLocation();
+
+  // Automatically close mobile sidebar whenever route changes
+  useEffect(() => {
+    closeMobile();
+  }, [location, closeMobile]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row w-full max-w-full overflow-x-hidden">
@@ -14,9 +22,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile Drawer Sidebar */}
-      <Sheet open={isOpen} onOpenChange={(openState) => !openState && close()}>
-        <SheetContent side="left" className="p-0 w-64 border-r border-border bg-card">
-          <Sidebar />
+      <Sheet open={isMobileOpen} onOpenChange={(openState) => !openState && closeMobile()}>
+        <SheetContent side="left" className="p-0 w-64 border-r border-border bg-card md:hidden [&>button]:hidden">
+          <Sidebar isMobileDrawer />
         </SheetContent>
       </Sheet>
 

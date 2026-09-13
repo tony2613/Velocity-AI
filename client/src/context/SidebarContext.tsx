@@ -1,17 +1,25 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 interface SidebarContextType {
+  // Desktop sidebar expand/collapse state
   isOpen: boolean;
+  isExpanded: boolean;
   toggle: () => void;
   close: () => void;
   open: () => void;
+
+  // Mobile drawer state
+  isMobileOpen: boolean;
+  toggleMobile: () => void;
+  closeMobile: () => void;
+  openMobile: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  // Load state from localStorage, default to true (expanded)
-  const [isOpen, setIsOpen] = useState(() => {
+  // Desktop state: Load from localStorage, default to true (expanded)
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("sidebar_open");
       return saved !== null ? JSON.parse(saved) : true;
@@ -19,6 +27,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
   });
+
+  // Mobile drawer state: default to false (closed), never persisted
+  const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -28,12 +39,40 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isOpen]);
 
-  const toggle = () => setIsOpen(!isOpen);
-  const close = () => setIsOpen(false);
-  const open = () => setIsOpen(true);
+  // If resized to desktop, ensure mobile drawer is closed
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined" && window.innerWidth >= 768) {
+        setIsMobileOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const toggle = useCallback(() => setIsOpen((prev: boolean) => !prev), []);
+  const close = useCallback(() => setIsOpen(false), []);
+  const open = useCallback(() => setIsOpen(true), []);
+
+  const toggleMobile = useCallback(() => setIsMobileOpen((prev: boolean) => !prev), []);
+  const closeMobile = useCallback(() => setIsMobileOpen(false), []);
+  const openMobile = useCallback(() => setIsMobileOpen(true), []);
+
 
   return (
-    <SidebarContext.Provider value={{ isOpen, toggle, close, open }}>
+    <SidebarContext.Provider
+      value={{
+        isOpen,
+        isExpanded: isOpen,
+        toggle,
+        close,
+        open,
+        isMobileOpen,
+        toggleMobile,
+        closeMobile,
+        openMobile,
+      }}
+    >
       {children}
     </SidebarContext.Provider>
   );
@@ -46,3 +85,4 @@ export function useSidebar() {
   }
   return context;
 }
+

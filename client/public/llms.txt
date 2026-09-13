@@ -1,0 +1,22 @@
+# VelocityAI
+
+> VelocityAI is an intelligent, AI-powered study assistant platform designed to transform textbooks, lecture notes, academic PDFs, presentations, and audio recordings into concise, structured study summaries and interactive practice quizzes.
+
+## Core Services
+
+- [Dashboard](https://velocityaisoftware.app/dashboard): Main study overview, daily streaks, and document upload management.
+- [AI Summarizer](https://velocityaisoftware.app/): Instant conversion of study materials into structured key points, conceptual breakdowns, and review sheets.
+- [Practice Quizzes](https://velocityaisoftware.app/quizzes): AI-generated multiple-choice and conceptual practice questions with instant grading.
+- [Adaptive Exam Planner](https://velocityaisoftware.app/planner): Study schedule calendar with weakness tracker and revision prioritization.
+- [Study Notes Library](https://velocityaisoftware.app/notes): Personal collection of saved study guides, summaries, and generated materials.
+
+## Platform Information
+
+- [Features](https://velocityaisoftware.app/features): Detailed feature tour of the VelocityAI study tool suite.
+- [Pricing](https://velocityaisoftware.app/pricing): Transparent Free, Pro, and Elite subscription tiers.
+- [FAQ](https://velocityaisoftware.app/faq): Frequently asked questions regarding document formats, AI accuracy, and account management.
+- [Blog](https://velocityaisoftware.app/blog): Study guides, memory retention techniques, and educational articles.
+- [Tutorials](https://velocityaisoftware.app/tutorials): Step-by-step guides on using AI tools for exam preparation.
+- [Contact & Support](https://velocityaisoftware.app/contact): Bug reports, customer service, and feedback channels.
+- [Privacy Policy](https://velocityaisoftware.app/privacy): Data security, document handling, and user privacy standards.
+- [Terms of Service](https://velocityaisoftware.app/terms): Terms and conditions governing platform usage.

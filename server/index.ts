@@ -1,11 +1,13 @@
-// server/index.ts  (Trigger reload to fix DNS cache)
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 // import { Portal } from "vaul"; // <-- remove unless you actually use it elsewhere
 
 const app = express();
+
+app.use(compression());
 
 // Add this if you need rawBody for webhooks etc.
 declare module "http" {

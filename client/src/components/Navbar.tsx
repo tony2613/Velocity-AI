@@ -20,7 +20,7 @@ export default function Navbar() {
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
   const [showInAppBrowserModal, setShowInAppBrowserModal] = useState(false);
 
-  const { toggle: toggleSidebar } = useSidebar();
+  const { toggleMobile } = useSidebar();
 
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -85,7 +85,7 @@ export default function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleSidebar}
+            onClick={toggleMobile}
             className="w-12 h-12 rounded-[1rem] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 dark:border-zinc-800/60 shadow-lg shadow-black/10 dark:shadow-black/30 flex items-center justify-center text-foreground hover:bg-white dark:hover:bg-zinc-900 transition-all duration-300 hover:scale-105 active:scale-95"
             data-testid="button-sidebar-toggle-mobile"
           >
@@ -207,71 +207,75 @@ export default function Navbar() {
 
       {/* Right Sheet Removed */}
 
-      <Dialog open={showIOSInstallModal} onOpenChange={setShowIOSInstallModal}>
-        <DialogContent className="sm:max-w-md glass-panel-heavy">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl">Install Velocity AI</DialogTitle>
-            <DialogDescription className="sr-only">Instructions on how to install the app on iOS devices</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
-            <div className="p-4 bg-muted/50 rounded-full">
-              <Upload className="h-8 w-8 text-primary" style={{ transform: "rotate(180deg)" }} />
-            </div>
-            <h3 className="font-semibold px-4 text-lg">Add to your Home Screen</h3>
-            <p className="text-sm text-muted-foreground px-6">
-              Install Velocity AI on your iPhone or iPad for the best full-screen experience and quick access.
-            </p>
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
-              <div className="flex items-center gap-3">
-                <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
-                <span>Tap the <strong>Share</strong> button at the bottom of Safari.</span>
+      {showIOSInstallModal && (
+        <Dialog open={showIOSInstallModal} onOpenChange={setShowIOSInstallModal}>
+          <DialogContent className="sm:max-w-md glass-panel-heavy">
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl">Install Velocity AI</DialogTitle>
+              <DialogDescription className="sr-only">Instructions on how to install the app on iOS devices</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
+              <div className="p-4 bg-muted/50 rounded-full">
+                <Upload className="h-8 w-8 text-primary" style={{ transform: "rotate(180deg)" }} />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
-                <span>Scroll down and tap <strong>Add to Home Screen</strong>.</span>
+              <h3 className="font-semibold px-4 text-lg">Add to your Home Screen</h3>
+              <p className="text-sm text-muted-foreground px-6">
+                Install Velocity AI on your iPhone or iPad for the best full-screen experience and quick access.
+              </p>
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
+                <div className="flex items-center gap-3">
+                  <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
+                  <span>Tap the <strong>Share</strong> button at the bottom of Safari.</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="bg-background rounded-full w-6 h-6 flex items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
+                  <span>Scroll down and tap <strong>Add to Home Screen</strong>.</span>
+                </div>
               </div>
+              <Button className="w-full mt-4" onClick={() => setShowIOSInstallModal(false)}>
+                Got it
+              </Button>
             </div>
-            <Button className="w-full mt-4" onClick={() => setShowIOSInstallModal(false)}>
-              Got it
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <Dialog open={showInAppBrowserModal} onOpenChange={setShowInAppBrowserModal}>
-        <DialogContent className="sm:max-w-md glass-panel-heavy">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl">Open in System Browser</DialogTitle>
-            <DialogDescription className="sr-only">Instructions to open the app in default browser to install</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
-            <div className="p-4 bg-muted/50 rounded-full">
-              <ExternalLink className="h-8 w-8 text-primary" />
+      {showInAppBrowserModal && (
+        <Dialog open={showInAppBrowserModal} onOpenChange={setShowInAppBrowserModal}>
+          <DialogContent className="sm:max-w-md glass-panel-heavy">
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl">Open in System Browser</DialogTitle>
+              <DialogDescription className="sr-only">Instructions to open the app in default browser to install</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
+              <div className="p-4 bg-muted/50 rounded-full">
+                <ExternalLink className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="font-semibold px-4 text-lg">Leave the app browser</h3>
+              <p className="text-sm text-muted-foreground px-6">
+                You're currently viewing this in an in-app browser. To safely install Velocity AI, please open this page in your device's default browser.
+              </p>
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
+                <div className="flex items-start gap-3">
+                  <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
+                  <span>Tap the <strong>three dots</strong> or <strong>Share</strong> icon in the corner of your screen.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
+                  <span>Select <strong>Open in Browser</strong>, <strong>Open in Safari</strong>, or <strong>Open in Chrome</strong>.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">3</div>
+                  <span>Once opened in your main browser, tap the <strong>Install App</strong> button again.</span>
+                </div>
+              </div>
+              <Button className="w-full mt-4" onClick={() => setShowInAppBrowserModal(false)}>
+                Got it
+              </Button>
             </div>
-            <h3 className="font-semibold px-4 text-lg">Leave the app browser</h3>
-            <p className="text-sm text-muted-foreground px-6">
-              You're currently viewing this in an in-app browser. To safely install Velocity AI, please open this page in your device's default browser.
-            </p>
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 w-full mt-4 flex flex-col gap-3 text-sm text-left">
-              <div className="flex items-start gap-3">
-                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">1</div>
-                <span>Tap the <strong>three dots</strong> or <strong>Share</strong> icon in the corner of your screen.</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">2</div>
-                <span>Select <strong>Open in Browser</strong>, <strong>Open in Safari</strong>, or <strong>Open in Chrome</strong>.</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="bg-background rounded-full w-6 h-6 flex flex-shrink-0 items-center justify-center font-bold text-xs shadow-sm shadow-primary/20">3</div>
-                <span>Once opened in your main browser, tap the <strong>Install App</strong> button again.</span>
-              </div>
-            </div>
-            <Button className="w-full mt-4" onClick={() => setShowInAppBrowserModal(false)}>
-              Got it
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
 
     </nav >

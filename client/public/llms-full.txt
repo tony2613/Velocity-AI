@@ -1,0 +1,26 @@
+# VelocityAI - Full Platform Documentation
+
+> VelocityAI is an intelligent, AI-powered study assistant platform designed to transform textbooks, lecture notes, academic PDFs, presentations, and audio recordings into concise, structured study summaries and interactive practice quizzes.
+
+## Key Capabilities
+
+1. **AI Study Summarizer**: Converts lengthy academic PDFs, course slides, and handwritten notes into structured, high-yield revision guides.
+2. **Interactive Practice Quizzes**: Automatically generates multiple-choice and conceptual practice questions directly from uploaded study material.
+3. **Adaptive Exam Planner**: Provides automated revision scheduling, weakness tracking, and exam countdowns.
+4. **Multi-Language Support**: Supports English, Spanish, French, German, and multiple global languages.
+5. **CANA AI Study Assistant**: Interactive contextual assistant capable of explaining complex formulas, historical timelines, and scientific concepts.
+
+## System URLs & Routes
+
+- Main Application: https://velocityaisoftware.app/
+- Dashboard: https://velocityaisoftware.app/dashboard
+- Quizzes: https://velocityaisoftware.app/quizzes
+- Exam Planner: https://velocityaisoftware.app/planner
+- Study Notes Library: https://velocityaisoftware.app/notes
+- Pricing Plans: https://velocityaisoftware.app/pricing
+- Frequently Asked Questions: https://velocityaisoftware.app/faq
+- Engineering & Study Blog: https://velocityaisoftware.app/blog
+- Tutorials & Guides: https://velocityaisoftware.app/tutorials
+- Contact & Bug Reporting: https://velocityaisoftware.app/contact
+- Privacy Policy: https://velocityaisoftware.app/privacy
+- Terms of Service: https://velocityaisoftware.app/terms
