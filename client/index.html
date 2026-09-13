@@ -79,10 +79,66 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "VelocityAI",
-    "url": "https://velocityaisoftware.app",
-    "logo": "https://velocityaisoftware.app/pwa-512x512.png"
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://velocityaisoftware.app/#software",
+        "name": "VelocityAI",
+        "url": "https://velocityaisoftware.app",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web, iOS, Android, macOS, Windows",
+        "description": "VelocityAI is an AI-powered study engine that transforms textbooks, lecture slides, and academic PDFs into concise summaries, active recall quizzes, adaptive study schedules, and weakness diagnostic trackers.",
+        "screenshot": "https://velocityaisoftware.app/pwa-512x512.png",
+        "featureList": [
+          "AI Summarization: Condenses lengthy textbooks, research PDFs, and lecture slides into high-yield summaries.",
+          "Active Recall Quiz Generation: Instantly auto-generates multiple-choice and conceptual practice questions directly from notes.",
+          "Exam Calendar: Real-time exam countdowns, interactive scheduling, and daily task agenda.",
+          "Adaptive Study Planner: Dynamic AI study timetable that automatically rebalances study sessions based on pace and exam deadlines.",
+          "Weakness Tracker: Diagnostic topic-level mastery analytics and targeted revision prioritization.",
+          "Smart Note Organization: Keep all study materials organized by subject, class, and semester.",
+          "Universal Export Tools: Download summaries and quizzes as PDF or DOCX files for offline review."
+        ],
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free Tier",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "5 Uploads/day, basic summarization, 3 quizzes/day."
+          },
+          {
+            "@type": "Offer",
+            "name": "Velocity Pro",
+            "price": "10",
+            "priceCurrency": "USD",
+            "description": "50 Uploads/day, priority processing, unlimited quizzes, CANA AI access."
+          },
+          {
+            "@type": "Offer",
+            "name": "Velocity Elite",
+            "price": "30",
+            "priceCurrency": "USD",
+            "description": "200 Uploads/day, expert summarization, unlimited quizzes, research mode."
+          }
+        ]
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://velocityaisoftware.app/#organization",
+        "name": "VelocityAI",
+        "url": "https://velocityaisoftware.app",
+        "logo": "https://velocityaisoftware.app/pwa-512x512.png",
+        "sameAs": [
+          "https://www.linkedin.com/company/velocityai-software"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://velocityaisoftware.app/#website",
+        "url": "https://velocityaisoftware.app",
+        "name": "VelocityAI"
+      }
+    ]
   }
   </script>
 

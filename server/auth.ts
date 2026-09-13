@@ -27,6 +27,12 @@ async function comparePasswords(supplied: string, stored: string) {
     return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
+export function sanitizeUser(user: any) {
+    if (!user) return user;
+    const { password, passwordResetToken, passwordResetExpires, ...safeUser } = user;
+    return safeUser;
+}
+
 export function setupAuth(app: Express) {
     const PgStore = pgSession(session);
     const sessionSettings: session.SessionOptions = {
@@ -237,7 +243,7 @@ export function setupAuth(app: Express) {
                     }).catch((err: unknown) => console.error("Failed to send welcome email:", err));
                 }
 
-                res.status(201).json(user);
+                res.status(201).json(sanitizeUser(user));
             });
         } catch (err) {
             next(err);
@@ -353,7 +359,7 @@ export function setupAuth(app: Express) {
                     cost: 0,
                     metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'] }),
                 });
-                res.status(200).json(user);
+                res.status(200).json(sanitizeUser(user));
             });
         })(req, res, next);
     });
@@ -375,6 +381,6 @@ export function setupAuth(app: Express) {
 
     app.get("/api/user", (req, res) => {
         if (!req.isAuthenticated()) return res.json(null);
-        res.json(req.user);
+        res.json(sanitizeUser(req.user));
     });
 }

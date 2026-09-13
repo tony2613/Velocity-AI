@@ -1,26 +1,28 @@
 # VelocityAI - Full Platform Documentation
 
-> VelocityAI is an intelligent, AI-powered study assistant platform designed to transform textbooks, lecture notes, academic PDFs, presentations, and audio recordings into concise, structured study summaries and interactive practice quizzes.
+> VelocityAI is an intelligent, AI-powered study engine designed to transform textbooks, lecture notes, academic PDFs, presentations, and audio recordings into concise summaries, active recall practice quizzes, adaptive exam calendars, and weakness diagnostic trackers.
 
-## Key Capabilities
+## 7 Core Capabilities
 
-1. **AI Study Summarizer**: Converts lengthy academic PDFs, course slides, and handwritten notes into structured, high-yield revision guides.
+1. **AI Summarizer**: Converts lengthy academic PDFs, course slides, and handwritten notes into structured, high-yield revision guides.
 2. **Interactive Practice Quizzes**: Automatically generates multiple-choice and conceptual practice questions directly from uploaded study material.
-3. **Adaptive Exam Planner**: Provides automated revision scheduling, weakness tracking, and exam countdowns.
-4. **Multi-Language Support**: Supports English, Spanish, French, German, and multiple global languages.
-5. **CANA AI Study Assistant**: Interactive contextual assistant capable of explaining complex formulas, historical timelines, and scientific concepts.
+3. **Exam Calendar**: Interactive exam scheduling, countdown timers, and daily task trackers to ensure timely exam preparation.
+4. **Adaptive Study Planner**: AI-powered study timetable that dynamically rebalances study sessions based on student pacing, topic difficulty, and target exam deadlines.
+5. **Weakness Tracker**: Diagnostic topic mastery analytics, automatic error tracking from quiz attempts, and targeted revision prioritization.
+6. **Smart Note Organization**: Subject-based folder hierarchy, search indexing, and semester course management.
+7. **Universal Export Tools**: Download summaries and quizzes as PDF or DOCX files for offline review, printing, or external backup.
 
-## System URLs & Routes
+## Official Platform URLs
 
 - Main Application: https://velocityaisoftware.app/
-- Dashboard: https://velocityaisoftware.app/dashboard
-- Quizzes: https://velocityaisoftware.app/quizzes
-- Exam Planner: https://velocityaisoftware.app/planner
-- Study Notes Library: https://velocityaisoftware.app/notes
-- Pricing Plans: https://velocityaisoftware.app/pricing
-- Frequently Asked Questions: https://velocityaisoftware.app/faq
-- Engineering & Study Blog: https://velocityaisoftware.app/blog
-- Tutorials & Guides: https://velocityaisoftware.app/tutorials
-- Contact & Bug Reporting: https://velocityaisoftware.app/contact
+- Features Tour: https://velocityaisoftware.app/features
+- Pricing: https://velocityaisoftware.app/pricing
+- Study Blog: https://velocityaisoftware.app/blog
+- Active Recall Guide: https://velocityaisoftware.app/blog/how-velocityai-helps-users-retain-more-knowledge
+- Future of AI in Education: https://velocityaisoftware.app/blog/future-of-ai
+- 2026 Study Hacks: https://velocityaisoftware.app/blog/study-hacks-2026
+- FAQ: https://velocityaisoftware.app/faq
+- Tutorials: https://velocityaisoftware.app/tutorials
+- Contact: https://velocityaisoftware.app/contact
 - Privacy Policy: https://velocityaisoftware.app/privacy
 - Terms of Service: https://velocityaisoftware.app/terms

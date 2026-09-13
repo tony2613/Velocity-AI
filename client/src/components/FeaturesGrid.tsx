@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Brain, FolderOpen, Download, Zap, Shield } from "lucide-react";
+import { FileText, Brain, FolderOpen, Download, Calendar, Target, TrendingUp } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function FeaturesGrid() {
@@ -17,6 +17,24 @@ export default function FeaturesGrid() {
       description: t("feature.quiz.desc"),
     },
     {
+      icon: Calendar,
+      title: t("feature.calendar.title"),
+      description: t("feature.calendar.desc"),
+      isNew: true,
+    },
+    {
+      icon: Target,
+      title: t("feature.planner.title"),
+      description: t("feature.planner.desc"),
+      isNew: true,
+    },
+    {
+      icon: TrendingUp,
+      title: t("feature.weakness.title"),
+      description: t("feature.weakness.desc"),
+      isNew: true,
+    },
+    {
       icon: FolderOpen,
       title: t("feature.org.title"),
       description: t("feature.org.desc"),
@@ -25,16 +43,6 @@ export default function FeaturesGrid() {
       icon: Download,
       title: t("feature.export.title"),
       description: t("feature.export.desc"),
-    },
-    {
-      icon: Zap,
-      title: t("feature.fast.title"),
-      description: t("feature.fast.desc"),
-    },
-    {
-      icon: Shield,
-      title: t("feature.pricing.title"),
-      description: t("feature.pricing.desc"),
     },
   ];
 
@@ -51,8 +59,15 @@ export default function FeaturesGrid() {
           {features.map((feature, index) => (
             <Card key={index} className="hover-elevate" data-testid={`card-feature-${index}`}>
               <CardContent className="p-6 space-y-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <feature.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  {feature.isNew && (
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-primary/20 text-primary border border-primary/30">
+                      NEW
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-lg font-semibold">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground">{feature.description}</p>

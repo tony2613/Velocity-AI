@@ -1,6 +1,23 @@
+# Robots.txt for VelocityAI (https://velocityaisoftware.app)
+# Designed for maximum SEO indexation and AI Answer Engine (AEO) visibility.
+
 User-agent: *
 Allow: /
+Allow: /features
+Allow: /pricing
+Allow: /blog
+Allow: /blog/*
+Allow: /faq
+Allow: /tutorials
+Allow: /get-started
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+
+# Disallow authenticated, user-specific study data to protect user privacy
 Disallow: /dashboard
+Disallow: /planner
+Disallow: /calendar
 Disallow: /notes
 Disallow: /upload
 Disallow: /profile
@@ -9,5 +26,36 @@ Disallow: /summary/
 Disallow: /quiz/
 Disallow: /quizzes
 Disallow: /auth
+
+# AI Answer Engines & Search Bots (Google AI Overview, ChatGPT Search, Perplexity, Claude, Apple Intelligence)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
 
 Sitemap: https://velocityaisoftware.app/sitemap.xml

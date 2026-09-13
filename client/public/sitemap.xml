@@ -4,59 +4,59 @@
   <!-- Home -->
   <url>
     <loc>https://velocityaisoftware.app/</loc>
-    <lastmod>2026-02-22</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
 
-  <!-- Marketing / Landing Pages -->
-  <url>
-    <loc>https://velocityaisoftware.app/get-started</loc>
-    <lastmod>2026-02-22</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
+  <!-- Marketing / Features / Pricing -->
   <url>
     <loc>https://velocityaisoftware.app/features</loc>
-    <lastmod>2026-02-22</lastmod>
-    <changefreq>monthly</changefreq>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://velocityaisoftware.app/pricing</loc>
-    <lastmod>2026-02-22</lastmod>
-    <changefreq>monthly</changefreq>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+  <url>
+    <loc>https://velocityaisoftware.app/get-started</loc>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 
-  <!-- Content Pages -->
+  <!-- Content & Blog Pages -->
   <url>
     <loc>https://velocityaisoftware.app/blog</loc>
-    <lastmod>2026-02-22</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://velocityaisoftware.app/blog/how-velocityai-helps-users-retain-more-knowledge</loc>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://velocityaisoftware.app/blog/future-of-ai</loc>
-    <lastmod>2026-01-01</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://velocityaisoftware.app/blog/study-hacks-2026</loc>
-    <lastmod>2025-12-15</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://velocityaisoftware.app/blog/how-velocityai-helps-users-retain-more-knowledge</loc>
-    <lastmod>2026-08-10</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
+    <lastmod>2026-09-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://velocityaisoftware.app/tutorials</loc>
-    <lastmod>2026-02-22</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -64,13 +64,13 @@
   <!-- Support Pages -->
   <url>
     <loc>https://velocityaisoftware.app/faq</loc>
-    <lastmod>2026-02-22</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://velocityaisoftware.app/contact</loc>
-    <lastmod>2026-02-22</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -78,13 +78,13 @@
   <!-- Legal Pages -->
   <url>
     <loc>https://velocityaisoftware.app/privacy</loc>
-    <lastmod>2026-02-18</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://velocityaisoftware.app/terms</loc>
-    <lastmod>2026-02-18</lastmod>
+    <lastmod>2026-09-13</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

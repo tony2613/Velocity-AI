@@ -9,6 +9,15 @@ const app = express();
 
 app.use(compression());
 
+// Security Headers
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
 // Add this if you need rawBody for webhooks etc.
 declare module "http" {
   interface IncomingMessage {

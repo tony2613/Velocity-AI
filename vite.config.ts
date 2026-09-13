@@ -72,6 +72,7 @@ export default defineConfig({
   build: {
     target: "es2022",
     modulePreload: false,
+    sourcemap: false,
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     rollupOptions: {
