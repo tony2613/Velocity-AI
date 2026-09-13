@@ -53,6 +53,13 @@ function FloatingCanaWrapper() {
   );
 }
 
+function GlobalStudyTimerWrapper() {
+  const [location] = useLocation();
+  const isStudyRoute = location === "/dashboard" || location.startsWith("/notes") || location.startsWith("/quiz") || location.startsWith("/summary/");
+  if (!isStudyRoute) return null;
+  return <GlobalStudyTimer />;
+}
+
 function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[60vh] w-full">
@@ -111,7 +118,7 @@ function App() {
           <LanguageProvider>
             <TooltipProvider>
               <SidebarProvider>
-                <GlobalStudyTimer />
+                <GlobalStudyTimerWrapper />
                 <FloatingCanaWrapper />
                 <IosInstallPrompt />
                 <Toaster />

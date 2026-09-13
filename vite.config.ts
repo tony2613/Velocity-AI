@@ -77,19 +77,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: [
-            "react",
-            "react-dom",
-            "wouter",
-            "@tanstack/react-query",
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-dropdown-menu",
-            "@radix-ui/react-toast",
-            "@radix-ui/react-tooltip",
-            "class-variance-authority",
-            "tailwind-merge",
-            "clsx",
-          ],
+          vendor: ["react", "react-dom", "wouter", "class-variance-authority", "tailwind-merge", "clsx"],
+          query: ["@tanstack/react-query"],
         },
       },
     },
