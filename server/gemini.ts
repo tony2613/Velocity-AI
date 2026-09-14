@@ -50,78 +50,84 @@ async function executeWithRotation<T>(
     throw lastError || new Error("All Gemini keys exhausted or failed");
 }
 
+const ACTIVE_GEMINI_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash"
+];
+
+function normalizeGeminiModel(model?: string): string {
+    if (!model) return "gemini-3.6-flash";
+    const m = model.toLowerCase().trim();
+    if (m.includes("2.5") || m.includes("1.5") || m === "gemini-pro" || m === "gemini-flash") {
+        return "gemini-3.6-flash";
+    }
+    return model;
+}
+
 export async function geminiOCR(buffer: Buffer, mimeType: string, retries: number = 2): Promise<string> {
-    return executeWithRotation(async (key: string) => {
+    const modelsToTry = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
         try {
-            console.log(`[Gemini] Attempting OCR via REST for ${mimeType} (${Math.round(buffer.length / 1024)} KB)...`);
-            
-            // Use v1beta endpoint for best compatibility with gemini-1.5-flash
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+            return await executeWithRotation(async (key: string) => {
+                try {
+                    console.log(`[Gemini] Attempting OCR via REST (${model}) for ${mimeType} (${Math.round(buffer.length / 1024)} KB)...`);
+                    
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
 
-            const payload = {
-                contents: [{
-                    parts: [
-                        { text: "Return the FULL and ACCURATE text extraction of this document. Extract every single word exactly as written. If there are tables, preserve the layout in markdown. Do NOT summarize. Do NOT omit any text. Return ONLY the extracted text content." },
-                        {
-                            inline_data: {
-                                mime_type: mimeType,
-                                data: buffer.toString("base64")
-                            }
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: "Return the FULL and ACCURATE text extraction of this document. Extract every single word exactly as written. If there are tables, preserve the layout in markdown. Do NOT summarize. Do NOT omit any text. Return ONLY the extracted text content." },
+                                {
+                                    inline_data: {
+                                        mime_type: mimeType,
+                                        data: buffer.toString("base64")
+                                    }
+                                }
+                            ]
+                        }],
+                        safetySettings
+                    };
+
+                    const timeout = mimeType === "application/pdf" ? 600000 : 120000;
+                    
+                    const response = await axios.post(url, payload, {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout
+                    });
+
+                    if (!response.data || !response.data.candidates || !response.data.candidates[0].content) {
+                        if (response.data?.promptFeedback?.blockReason) {
+                            throw new Error(`Content blocked by Gemini safety filters: ${response.data.promptFeedback.blockReason}`);
                         }
-                    ]
-                }],
-                safetySettings
-            };
+                        throw new Error("Invalid response from Gemini API");
+                    }
 
-            // For large PDFs, we increase the timeout to 5 minutes
-            const timeout = mimeType === "application/pdf" ? 600000 : 120000;
-            
-            console.log(`[Gemini] Sending ${mimeType} (size: ${Math.round(buffer.length/1024)}KB) to Gemini... (Timeout: ${timeout/1000}s)`);
-            
-            const response = await axios.post(url, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout
-            });
-
-            if (!response.data || !response.data.candidates || !response.data.candidates[0].content) {
-                // Handle cases where the model might refuse to process (safety filters)
-                if (response.data?.promptFeedback?.blockReason) {
-                    console.error(`[Gemini] Content blocked: ${response.data.promptFeedback.blockReason}`);
-                    throw new Error(`Content blocked by Gemini safety filters: ${response.data.promptFeedback.blockReason}`);
+                    const text = response.data.candidates[0].content.parts[0].text.trim();
+                    console.log(`[Gemini] OCR Successful via ${model}: extracted ${text.length} characters.`);
+                    return text;
+                } catch (error: any) {
+                    const status = error.response?.status;
+                    if (retries > 0 && (status === 429 || status === 503 || status === 504 || error.code === 'ECONNABORTED')) {
+                        const delay = status === 429 ? 3000 : 1500;
+                        console.warn(`[Gemini OCR] Error ${status || error.code}. Retrying in ${delay}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        return geminiOCR(buffer, mimeType, retries - 1);
+                    }
+                    throw error;
                 }
-                console.error("[Gemini] Invalid REST Response:", JSON.stringify(response.data));
-                throw new Error("Invalid response from Gemini API");
-            }
-
-            const text = response.data.candidates[0].content.parts[0].text.trim();
-            
-            if (!text) {
-                console.warn("[Gemini] OCR REST returned an empty response string.");
-            } else {
-                console.log(`[Gemini] OCR Successful: extracted ${text.length} characters.`);
-            }
-            
-            return text;
-        } catch (error: any) {
-            const status = error.response?.status;
-            
-            // Retry on 429 (Rate Limit) or 503/504 (Server error)
-            if (retries > 0 && (status === 429 || status === 503 || status === 504 || error.code === 'ECONNABORTED')) {
-                const delay = status === 429 ? 5000 : 2000;
-                console.warn(`[Gemini] Error ${status || error.code}. Retrying in ${delay}ms... (${retries} attempts left)`);
-                await new Promise(r => setTimeout(r, delay));
-                return geminiOCR(buffer, mimeType, retries - 1);
-            }
-
-            console.error("❌ Gemini OCR API Error Details:");
-            console.error("- Message:", error.message);
-            if (error.response) {
-                console.error("- Status:", error.response.status);
-                console.error("- Data:", JSON.stringify(error.response.data));
-            }
-            throw error;
+            });
+        } catch (err: any) {
+            lastError = err;
+            console.warn(`[Gemini OCR] Model ${model} failed: ${err.message}. Trying next model...`);
         }
-    });
+    }
+
+    throw lastError || new Error("All Gemini OCR models failed");
 }
 
 async function callGroqChat(messages: { role: string; content: string }[]): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
@@ -139,7 +145,7 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
         temperature: 0.1
     };
     
-    console.log("[Groq Fallback] Sending request to Groq (openai/gpt-oss-120b)...");
+    console.log("[Groq Fallback] Sending request to Groq...");
     const response = await axios.post(url, payload, {
         headers: { 
             'Content-Type': 'application/json',
@@ -162,75 +168,95 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
     return { content, usage };
 }
 
-export async function geminiChat(messages: { role: string; content: string }[], model: string = "gemini-1.5-flash"): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
-    try {
-        return await executeWithRotation(async (key: string) => {
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+export async function geminiChat(
+    messages: { role: string; content: string }[], 
+    model: string = "gemini-3.6-flash"
+): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    const primary = normalizeGeminiModel(model);
+    const candidateModels = [primary, ...ACTIVE_GEMINI_MODELS.filter(m => m !== primary)];
+    let lastError: any = null;
 
-                let systemInstruction = undefined;
-                const contents = [];
+    for (const currentModel of candidateModels) {
+        try {
+            return await executeWithRotation(async (key: string) => {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${key}`;
 
-                for (const m of messages) {
-                    if (m.role === "system") {
-                        systemInstruction = { parts: [{ text: m.content }] };
-                    } else {
-                        contents.push({
-                            role: m.role === "user" ? "user" : "model",
-                            parts: [{ text: m.content }]
-                        });
+                    let systemInstruction = undefined;
+                    const contents = [];
+
+                    for (const m of messages) {
+                        if (m.role === "system") {
+                            systemInstruction = { parts: [{ text: m.content }] };
+                        } else {
+                            contents.push({
+                                role: m.role === "user" ? "user" : "model",
+                                parts: [{ text: m.content }]
+                            });
+                        }
                     }
+
+                    const payload = {
+                        system_instruction: systemInstruction,
+                        contents,
+                        generationConfig: {
+                            maxOutputTokens: 8192,
+                            temperature: 0.1
+                        },
+                        safetySettings
+                    };
+
+                    const response = await axios.post(url, payload, {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 300000
+                    });
+
+                    const candidate = response.data.candidates?.[0];
+                    if (!candidate || !candidate.content) {
+                        throw new Error(`Invalid response from Gemini API: ${JSON.stringify(response.data)}`);
+                    }
+
+                    const text = candidate.content.parts[0].text;
+                    
+                    const usage = {
+                        promptTokens: response.data.usageMetadata?.promptTokenCount || 0,
+                        completionTokens: response.data.usageMetadata?.candidatesTokenCount || 0,
+                        totalTokens: response.data.usageMetadata?.totalTokenCount || 0
+                    };
+
+                    return { content: text, usage };
+                } catch (error: any) {
+                    const status = error.response?.status;
+                    const errorMsg = error.response?.data?.error?.message || error.message;
+                    console.error(`[Gemini Chat] Model '${currentModel}' Error (${status}): ${errorMsg}`);
+                    throw error;
                 }
-
-                const payload = {
-                    system_instruction: systemInstruction,
-                    contents,
-                    generationConfig: {
-                        maxOutputTokens: 8192,
-                        temperature: 0.1
-                    },
-                    safetySettings
-                };
-
-                const response = await axios.post(url, payload, {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 300000
-                });
-
-                const candidate = response.data.candidates?.[0];
-                if (!candidate || !candidate.content) {
-                    throw new Error(`Invalid response from Gemini API: ${JSON.stringify(response.data)}`);
-                }
-
-                const text = candidate.content.parts[0].text;
-                
-                const usage = {
-                    promptTokens: response.data.usageMetadata?.promptTokenCount || 0,
-                    completionTokens: response.data.usageMetadata?.candidatesTokenCount || 0,
-                    totalTokens: response.data.usageMetadata?.totalTokenCount || 0
-                };
-
-                return { content: text, usage };
-            } catch (error: any) {
-                console.error(`[Gemini Chat] Error: ${error.message}`);
-                if (error.response?.data) {
-                    console.error(`[Gemini Data]: ${JSON.stringify(error.response.data)}`);
-                }
-                throw error;
+            });
+        } catch (err: any) {
+            lastError = err;
+            const status = err.response?.status;
+            // If model is not found (404), temporarily high demand (503), or quota reached (429), try next model
+            if (status === 404 || status === 503 || status === 429) {
+                console.warn(`[Gemini Fallback] Model '${currentModel}' failed with ${status}. Attempting next model in cascade...`);
+                continue;
             }
-        });
-    } catch (geminiError: any) {
-        if (process.env.GROQ_API_KEY) {
-            console.warn(`[Gemini Fallback] Gemini API call failed: ${geminiError.message}. Falling back to Groq API...`);
-            try {
-                return await callGroqChat(messages);
-            } catch (groqError: any) {
-                console.error(`[Groq Fallback Failed] Groq API call also failed: ${groqError.message}`);
-                throw new Error(`Both Gemini and Groq APIs failed. Gemini: ${geminiError.message}. Groq: ${groqError.message}`);
-            }
+            // For other errors, still try next model if available
+            console.warn(`[Gemini Fallback] Model '${currentModel}' failed. Trying next model...`);
         }
-        throw geminiError;
     }
+
+    // If all Gemini models fail, attempt Groq fallback if configured
+    if (process.env.GROQ_API_KEY) {
+        console.warn(`[Gemini Fallback] All Gemini models failed: ${lastError?.message}. Falling back to Groq API...`);
+        try {
+            return await callGroqChat(messages);
+        } catch (groqError: any) {
+            console.error(`[Groq Fallback Failed] Groq API call also failed: ${groqError.message}`);
+            throw new Error(`AI generation failed. Gemini: ${lastError?.message || 'Unavailable'}. Groq: ${groqError.message}`);
+        }
+    }
+
+    throw lastError || new Error("All Gemini models exhausted");
 }
 
 export interface AdaptivePlanRequest {

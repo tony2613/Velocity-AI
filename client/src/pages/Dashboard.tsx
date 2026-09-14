@@ -144,7 +144,7 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <OnboardingTutorial />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36 md:pb-12 space-y-8 w-full">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/40 pb-6">
           <div>
@@ -252,16 +252,20 @@ export default function Dashboard() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-9 gap-1 text-xs hover:bg-primary/10 hover:text-primary"
-                        onClick={() => generateQuizMutation.mutate(note.id)}
+                        className="h-9 px-2.5 sm:px-3 gap-1 text-xs hover:bg-primary/10 hover:text-primary touch-manipulation"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateQuizMutation.mutate(note.id);
+                        }}
                         disabled={isGeneratingQuizId !== null}
+                        title="Generate Quiz"
                       >
                         {isGeneratingQuizId === note.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                         ) : (
                           <Sparkles className="h-3.5 w-3.5 text-primary" />
                         )}
-                        <span className="hidden sm:inline">Quiz</span>
+                        <span className="text-xs font-medium">Quiz</span>
                       </Button>
 
                       <DropdownMenu>

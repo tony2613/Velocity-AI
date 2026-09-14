@@ -312,7 +312,11 @@ export default function SummaryView() {
   const generateSummaryMutation = useMutation({
     mutationFn: async () => {
       const language = localStorage.getItem("velocity_language") || "English";
-      const preferredModel = localStorage.getItem("velocity_model") || "gemini-2.5-flash";
+      let preferredModel = localStorage.getItem("velocity_model") || "gemini-3.6-flash";
+      if (preferredModel.includes("2.5") || preferredModel.includes("1.5") || preferredModel.includes("llama")) {
+        preferredModel = "gemini-3.6-flash";
+        localStorage.setItem("velocity_model", preferredModel);
+      }
       
       const response = await fetch(`/api/notes/${id}/summary`, {
         method: "POST",
@@ -413,7 +417,7 @@ export default function SummaryView() {
 
   return (
     <AppLayout>
-      <main className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8 overflow-x-hidden">
+      <main className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36 md:pb-16 space-y-8 overflow-x-hidden">
         <div className="flex items-center gap-4">
           <Link href="/dashboard">
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -496,7 +500,7 @@ export default function SummaryView() {
                   size="lg"
                   onClick={() => generateSummaryMutation.mutate()}
                   disabled={generateSummaryMutation.isPending}
-                  className="px-8"
+                  className="w-full sm:w-auto px-8 h-12 text-base font-semibold shadow-md active:scale-95 transition-transform"
                 >
                   {generateSummaryMutation.isPending ? (
                     <>

@@ -98,15 +98,19 @@ export default function NoteCard({ title, subject, preview, date, id, audioData,
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7"
-            onClick={() => generateQuizMutation.mutate()}
+            className="h-8 w-8 sm:h-7 sm:w-7 touch-manipulation"
+            onClick={(e) => {
+              e.stopPropagation();
+              generateQuizMutation.mutate();
+            }}
             disabled={isGeneratingQuiz}
             data-testid={`button-quiz-compact-${id}`}
+            title="Generate Quiz"
           >
             {isGeneratingQuiz ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
             )}
           </Button>
           <DropdownMenu>
@@ -189,9 +193,13 @@ export default function NoteCard({ title, subject, preview, date, id, audioData,
           </Link>
           <Button 
             size="sm" 
-            onClick={() => generateQuizMutation.mutate()}
+            onClick={(e) => {
+              e.stopPropagation();
+              generateQuizMutation.mutate();
+            }}
             disabled={isGeneratingQuiz}
             data-testid={`button-quiz-${id}`}
+            className="touch-manipulation"
           >
             {isGeneratingQuiz ? (
               <Loader2 className="h-3 w-3 mr-1 animate-spin" />

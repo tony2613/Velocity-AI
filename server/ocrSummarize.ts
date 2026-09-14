@@ -300,7 +300,7 @@ export async function extractTextFromFile(fileData: string | Buffer, filename: s
 export async function generateSummary(
   text: string,
   language: string = "English",
-  preferredModel: string = "gemini-2.5-flash"
+  preferredModel: string = "gemini-3.6-flash"
 ): Promise<{
   summary: string;
   keyPoints: string[];
@@ -363,36 +363,22 @@ export async function generateSummary(
     let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
     const callGemini = async (model: string) => {
-      const m = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-2.5-flash";
-      const res = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], m);
+      const res = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], model);
       return { content: res.content, usage: res.usage };
     };
 
     try {
-      if (preferredModel.includes("gemini")) {
-        const res = await callGemini(preferredModel);
-        summaryText = res.content;
-        totalUsage = res.usage;
-      } else {
-        const res = await callGemini("gemini-2.5-flash");
-        summaryText = res.content;
-        totalUsage = res.usage;
-      }
+      const res = await callGemini(preferredModel || "gemini-3.6-flash");
+      summaryText = res.content;
+      totalUsage = res.usage;
     } catch (primaryError: any) {
       console.warn(`[Summarize] Primary model '${preferredModel}' failed: ${primaryError.message}. Attempting fallback...`);
       
       try {
-        if (preferredModel === "gemini-pro" || preferredModel === "gemini-1.5-pro") {
-          console.log(`[Summarize] Falling back from Gemini Pro to Gemini Flash...`);
-          const res = await callGemini("gemini-2.5-flash");
-          summaryText = res.content;
-          totalUsage = res.usage;
-        } else {
-          console.log(`[Summarize] Falling back from Gemini Flash to Gemini Pro...`);
-          const res = await callGemini("gemini-1.5-pro");
-          summaryText = res.content;
-          totalUsage = res.usage;
-        }
+        console.log(`[Summarize] Falling back to Gemini 3.5 Flash Lite...`);
+        const res = await callGemini("gemini-3.5-flash-lite");
+        summaryText = res.content;
+        totalUsage = res.usage;
       } catch (fallbackError: any) {
         console.error(`[Summarize] Fallback model also failed: ${fallbackError.message}`);
         
@@ -440,8 +426,7 @@ export async function generateSummary(
         const rSys = "Expert educational research assistant. Provide an exhaustive, detailed, and comprehensive multi-paragraph explanation (at least 5-8 sentences) defining the concept, explaining its academic/practical context, applications, and examples.";
         const rUsr = `Explain: "${topic}".${context}`;
 
-        const m = preferredModel === "gemini-pro" ? "gemini-1.5-pro" : "gemini-2.5-flash";
-        const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], m);
+        const res = await geminiChat([{ role: "system", content: rSys }, { role: "user", content: rUsr }], "gemini-3.6-flash");
         topicExplanations[topic] = res.content.trim();
         totalUsage.promptTokens += res.usage.promptTokens;
         totalUsage.completionTokens += res.usage.completionTokens;
@@ -457,7 +442,7 @@ export async function generateSummary(
   }
 }
 
-export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "gemini-2.5-flash") {
+export async function extractAndSummarize(fileData: string | Buffer, filename: string, preferredModel: string = "gemini-3.6-flash") {
   try {
     const extracted = await extractTextFromFile(fileData, filename);
     

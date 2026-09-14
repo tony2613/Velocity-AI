@@ -160,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tokensInput: usage?.promptTokens || 0,
         tokensOutput: usage?.completionTokens || 0,
         cost: 0,
-        model: req.body.preferredModel || "gemini-2.5-flash",
+        model: req.body.preferredModel || "gemini-3.6-flash",
         metadata: JSON.stringify({ filename, fileSize: req.file.size }),
       });
 
@@ -350,7 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: "user",
             content: `Research this topic in depth: "${question}"`
           },
-        ], "gemini-2.5-flash");
+        ], "gemini-3.6-flash");
 
       const researchContent = researchResult.content;
       if (!researchContent) {
@@ -473,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...newHistory
       ];
 
-      const resAi = await geminiChat(promptMessages, "gemini-2.5-flash");
+      const resAi = await geminiChat(promptMessages, "gemini-3.6-flash");
       
       const finalHistory = [...newHistory, { role: "assistant", content: resAi.content }];
       await storage.updateCanaChatMessages(chat.id, finalHistory);
@@ -542,10 +542,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let responseText = "{}";
       let tokensInput = 0;
       let tokensOutput = 0;
-      let usedModel = "gemini-2.5-flash";
+      let usedModel = "gemini-3.6-flash";
 
       try {
-        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-2.5-flash");
+        const res = await geminiChat([{ role: "system", content: sysMsg }, { role: "user", content: usrMsg }], "gemini-3.6-flash");
         responseText = res.content;
         tokensInput = res.usage.promptTokens;
         tokensOutput = res.usage.completionTokens;

@@ -91,7 +91,11 @@ export default function UploadZone() {
 
   const processImageMutation = useMutation({
     mutationFn: async (data: { imageData?: string; imageDataList?: string[]; title: string; subject: string; isPDF?: boolean; isPPT?: boolean; language?: string }) => {
-      const preferredModel = localStorage.getItem("velocity_model") || "gemini-1.5-flash";
+      let preferredModel = localStorage.getItem("velocity_model") || "gemini-3.6-flash";
+      if (preferredModel.includes("2.5") || preferredModel.includes("1.5") || preferredModel.includes("llama")) {
+        preferredModel = "gemini-3.6-flash";
+        localStorage.setItem("velocity_model", preferredModel);
+      }
       const response = await fetch("/api/process-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
