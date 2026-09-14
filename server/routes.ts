@@ -436,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cana/chat", isAuthenticated, checkSearchLimit, async (req, res) => {
     try {
-      const { query, mode, chatId } = req.body;
+      const { query, chatId } = req.body;
       const userId = (req.user as any).id;
       
       let chat;
@@ -455,15 +455,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let contextStr = "";
       if (notes && notes.length > 0) {
         const combined = notes.map(n => `Title: ${n.title}\nContent: ${n.content.substring(0, 3000)}`).join("\n\n---\n\n");
-        contextStr = `\n\nUSER'S NOTES FOR CONTEXT:\n${combined.substring(0, 15000)}`;
+        contextStr = `\n\nUSER'S UPLOADED STUDY NOTES FOR CONTEXT:\n${combined.substring(0, 15000)}`;
       }
       
-      let systemMsg = "";
-      if (mode === "topics") {
-        systemMsg = "You are 'CANA'. The user is searching for specific topics within their notes. Act as a conversational assistant: analyze their query, find exact matching concepts in their notes provided below, explicitly cite which note it came from, and summarize the findings. ALWAYS end your response by naturally asking if they want a deeper detailed explanation or if they want to explore something else." + contextStr;
-      } else {
-        systemMsg = "You are 'CANA' (Context-Aware Notes Assistant), a conversational study partner. Answer their queries naturally. If relevant to their notes below, use them. If not, just chat naturally." + contextStr;
-      }
+      const systemMsg = `You are 'CANA' (Context-Aware Notes Assistant), an intelligent, conversational AI study partner.
+You seamlessly unify conversational chatting and deep note search.
+- When the user asks a question, searches for a topic, or mentions anything related to their uploaded notes: synthesize the answer directly from their notes, cite the specific note title, and highlight the relevant insights.
+- When the user asks general academic, conceptual, or conversational study questions: answer clearly, engagingly, and accurately with helpful analogies and examples.
+- Format responses cleanly with markdown (bolding, lists, code blocks where appropriate).
+- Conclude naturally with an encouraging follow-up thought or offer to explore deeper.${contextStr}`;
 
       const pastMessages = (chat.messages || []) as Array<{role: string, content: string}>;
       const newHistory = [...pastMessages, { role: "user", content: query }];
@@ -473,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...newHistory
       ];
 
-      const resAi = await geminiChat(promptMessages, "gemini-3.6-flash");
+      const resAi = await geminiChat(promptMessages, "gemini-3.5-flash-lite");
       
       const finalHistory = [...newHistory, { role: "assistant", content: resAi.content }];
       await storage.updateCanaChatMessages(chat.id, finalHistory);

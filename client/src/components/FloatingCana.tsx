@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Loader2, Sparkles, BrainCircuit, ArrowRight, X, MessageSquare, BookOpen } from "lucide-react";
+import { Search, Loader2, Sparkles, BrainCircuit, ArrowRight, X, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,7 +28,6 @@ export default function FloatingCana() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<"chat" | "topics">("chat");
   const [activeChat, setActiveChat] = useState<CanaChat | null>(null);
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,7 +39,6 @@ export default function FloatingCana() {
     mutationFn: async (searchQuery: string) => {
       const res = await apiRequest("POST", "/api/cana/chat", { 
         query: searchQuery, 
-        mode,
         chatId: activeChat?.id 
       });
       const data = await res.json();
@@ -84,6 +82,15 @@ export default function FloatingCana() {
     setQuery("");
   };
 
+  const handleNewChat = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setActiveChat(null);
+    setQuery("");
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   // Auto-scroll to bottom of chat
   useEffect(() => {
     if (scrollRef.current) {
@@ -114,7 +121,7 @@ export default function FloatingCana() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // Expose a global way to open a specific chat ID (useful for the Navbar history)
+  // Expose global ways to open a specific chat ID or start a new chat
   useEffect(() => {
     const handleOpenChat = (e: CustomEvent<{chatId: string}>) => {
       setIsOpen(true);
@@ -123,8 +130,18 @@ export default function FloatingCana() {
         .then(chat => setActiveChat(chat))
         .catch(console.error);
     };
+    const handleNewChatEvent = () => {
+      setIsOpen(true);
+      setActiveChat(null);
+      setQuery("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    };
     window.addEventListener('open-cana-chat', handleOpenChat as EventListener);
-    return () => window.removeEventListener('open-cana-chat', handleOpenChat as EventListener);
+    window.addEventListener('new-cana-chat', handleNewChatEvent as EventListener);
+    return () => {
+      window.removeEventListener('open-cana-chat', handleOpenChat as EventListener);
+      window.removeEventListener('new-cana-chat', handleNewChatEvent as EventListener);
+    };
   }, []);
 
   // Route Allowlist - only mount CANA on necessary pages (dashboard and notes summary)
@@ -164,24 +181,30 @@ export default function FloatingCana() {
         >
           {isOpen && (
             <div className="flex items-center justify-between mb-3 px-2">
-              <div className="flex bg-muted/50 p-1 rounded-lg">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMode("chat"); }}
-                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-2 rounded-md transition-all ${mode === "chat" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  <MessageSquare className="h-3.5 w-3.5" /> Conversational Chat
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMode("topics"); }}
-                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-2 rounded-md transition-all ${mode === "topics" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  <BookOpen className="h-3.5 w-3.5" /> Search My Notes
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20">
+                  <Sparkles className="h-3.5 w-3.5" /> CANA AI Companion
+                </span>
+                <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                  Unified Chat & Notes Search
+                </span>
               </div>
               
               <div className="flex items-center gap-2">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleNewChat}
+                  className="h-7 text-xs px-2.5 gap-1.5 bg-background/80 hover:bg-primary/10 hover:text-primary border-primary/25 transition-all rounded-lg font-medium shadow-sm flex items-center"
+                  title="Start a new chat (clears current conversation)"
+                >
+                  <Plus className="h-3.5 w-3.5 text-primary" />
+                  <span>New Chat</span>
+                </Button>
+
                 {user && user.subscriptionTier === 'elite' && (
-                  <div className="text-[10px] font-medium text-muted-foreground bg-background px-2 py-0.5 rounded border">
+                  <div className="text-[10px] font-medium text-muted-foreground bg-background px-2 py-0.5 rounded border hidden sm:block">
                     {Math.max(0, PLAN_LIMITS.elite.searchLimit - (user.monthlySearchCount || 0))} / {PLAN_LIMITS.elite.searchLimit} queries
                   </div>
                 )}
@@ -199,7 +222,7 @@ export default function FloatingCana() {
               </div>
               <Input
                 ref={inputRef}
-                placeholder={mode === "chat" ? "Ask CANA anything..." : "Search your notes for a specific topic..."}
+                placeholder="Ask CANA anything or search your notes..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="flex-1 border-0 bg-transparent text-base sm:text-lg focus-visible:ring-0 px-2 py-6 text-foreground placeholder:text-muted-foreground/70"
@@ -229,6 +252,24 @@ export default function FloatingCana() {
             <Card className="glass-panel-heavy border-primary/20 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 z-0"></div>
               
+              {/* Chat Header with Title and New Chat */}
+              <div className="px-4 py-2.5 border-b border-border/40 relative z-10 flex items-center justify-between bg-muted/20">
+                <div className="flex items-center gap-2 min-w-0 pr-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                  <span className="text-xs font-medium text-foreground/80 truncate">
+                    {activeChat.title || "Active Discussion"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 shrink-0 px-2 py-1 rounded hover:bg-primary/10 transition-colors"
+                  title="Start a new chat"
+                >
+                  <Plus className="h-3 w-3" /> New Chat
+                </button>
+              </div>
+
               <CardContent ref={scrollRef} className="p-6 relative z-10 max-h-[60vh] overflow-y-auto custom-scrollbar flex flex-col gap-4">
                 {activeChat.messages.map((msg, i) => (
                   <div key={i} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>

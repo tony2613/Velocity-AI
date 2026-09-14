@@ -3,7 +3,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame, CalendarDays, X } from "lucide-react";
+import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame, CalendarDays, X, Plus } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { PLAN_LIMITS } from "@shared/plans";
@@ -191,7 +191,19 @@ export default function Sidebar({ isMobileDrawer = false }: SidebarProps) {
 
               {/* CANA History List */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">CANA History</span>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">CANA History</span>
+                  <button 
+                    onClick={() => {
+                      handleItemClick();
+                      window.dispatchEvent(new CustomEvent('new-cana-chat'));
+                    }}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
+                    title="Start New Chat"
+                  >
+                    <Plus className="h-3 w-3" /> New
+                  </button>
+                </div>
                 <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar pr-1">
                   {canaChats?.length ? canaChats.map((chat: any) => (
                     <button 
