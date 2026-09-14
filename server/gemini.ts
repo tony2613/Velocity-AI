@@ -51,23 +51,23 @@ async function executeWithRotation<T>(
 }
 
 const ACTIVE_GEMINI_MODELS = [
-    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
     "gemini-3.1-flash-lite",
     "gemini-3.5-flash"
 ];
 
 function normalizeGeminiModel(model?: string): string {
-    if (!model) return "gemini-3.6-flash";
+    if (!model) return "gemini-3.5-flash-lite";
     const m = model.toLowerCase().trim();
     if (m.includes("2.5") || m.includes("1.5") || m === "gemini-pro" || m === "gemini-flash") {
-        return "gemini-3.6-flash";
+        return "gemini-3.5-flash-lite";
     }
     return model;
 }
 
 export async function geminiOCR(buffer: Buffer, mimeType: string, retries: number = 2): Promise<string> {
-    const modelsToTry = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
+    const modelsToTry = ["gemini-3.5-flash-lite", "gemini-3.6-flash"];
     let lastError: any = null;
 
     for (const model of modelsToTry) {
@@ -170,7 +170,7 @@ async function callGroqChat(messages: { role: string; content: string }[]): Prom
 
 export async function geminiChat(
     messages: { role: string; content: string }[], 
-    model: string = "gemini-3.6-flash"
+    model: string = "gemini-3.5-flash-lite"
 ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     const primary = normalizeGeminiModel(model);
     const candidateModels = [primary, ...ACTIVE_GEMINI_MODELS.filter(m => m !== primary)];
