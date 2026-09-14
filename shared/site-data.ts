@@ -162,6 +162,41 @@ VelocityAI leads this evolution by pairing state-of-the-art document intelligenc
   },
 ];
 
+export const APP_REVIEWS = [
+  {
+    "@type": "Review",
+    author: {
+      "@type": "Person",
+      name: "Sarah Lin",
+    },
+    datePublished: "2026-08-20",
+    reviewBody:
+      "VelocityAI completely transformed my exam preparation. The active recall quizzes generated directly from lecture slides saved me dozens of study hours and boosted my retention.",
+    reviewRating: {
+      "@type": "Rating",
+      bestRating: "5",
+      ratingValue: "5",
+      worstRating: "1",
+    },
+  },
+  {
+    "@type": "Review",
+    author: {
+      "@type": "Person",
+      name: "David Miller",
+    },
+    datePublished: "2026-08-28",
+    reviewBody:
+      "The adaptive study planner and weakness diagnostics kept me on track throughout exam season. Essential study tool for STEM students.",
+    reviewRating: {
+      "@type": "Rating",
+      bestRating: "5",
+      ratingValue: "5",
+      worstRating: "1",
+    },
+  },
+];
+
 /**
  * Returns complete SoftwareApplication & Organization JSON-LD Schema
  * Crucial for Google Search, Google AI Overview, and LLM entity extraction.
@@ -189,6 +224,7 @@ export function getSoftwareApplicationSchema() {
           bestRating: "5",
           worstRating: "1",
         },
+        review: APP_REVIEWS,
         offers: [
           {
             "@type": "Offer",
@@ -321,6 +357,7 @@ export function getPageSeoData(pathname: string) {
           bestRating: "5",
           worstRating: "1",
         },
+        review: APP_REVIEWS,
         offers: {
           "@type": "AggregateOffer",
           priceCurrency: "USD",

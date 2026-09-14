@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useState, useEffect } from "react";
 import SEO from "@/components/SEO";
 import { PLANS, PLAN_LIMITS } from "@shared/plans";
+import { getPageSeoData } from "@shared/site-data";
 
 const getTiersForRegion = (region: 'IN' | 'EU' | 'US') => {
     return PLANS.map(plan => {
@@ -53,6 +54,7 @@ export default function Pricing() {
                 title="Pricing – Affordable Plans for Students"
                 description="Choose from VelocityAI's Free, Velocity Pro, and Velocity Elite plans. Start free or upgrade for unlimited AI summaries, quizzes, and research mode."
                 canonicalPath="/pricing"
+                structuredData={getPageSeoData("/pricing").structuredData}
             />
             <Button
                 variant="ghost"
