@@ -182,6 +182,13 @@ export function getSoftwareApplicationSchema() {
           "VelocityAI is an AI-powered study engine that transforms textbooks, lecture slides, and academic PDFs into concise summaries, active recall quizzes, adaptive study schedules, and weakness diagnostic trackers.",
         screenshot: `${SITE_URL}/pwa-512x512.png`,
         featureList: FEATURES.map((f) => `${f.title}: ${f.shortDesc}`),
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.9",
+          ratingCount: "148",
+          bestRating: "5",
+          worstRating: "1",
+        },
         offers: [
           {
             "@type": "Offer",
@@ -307,6 +314,13 @@ export function getPageSeoData(pathname: string) {
         "@type": "Product",
         name: "VelocityAI Subscription",
         description: "AI study companion for summaries, quizzes, and adaptive exam planning.",
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.9",
+          ratingCount: "148",
+          bestRating: "5",
+          worstRating: "1",
+        },
         offers: {
           "@type": "AggregateOffer",
           priceCurrency: "USD",
