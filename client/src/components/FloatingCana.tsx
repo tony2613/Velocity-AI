@@ -121,6 +121,13 @@ export default function FloatingCana() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
+  // Track active chat changes and notify other components (e.g. Sidebar)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('cana-active-chat-changed', { 
+      detail: { chatId: activeChat?.id || null } 
+    }));
+  }, [activeChat?.id]);
+
   // Expose global ways to open a specific chat ID or start a new chat
   useEffect(() => {
     const handleOpenChat = (e: CustomEvent<{chatId: string}>) => {
@@ -136,6 +143,17 @@ export default function FloatingCana() {
       setQuery("");
       setTimeout(() => inputRef.current?.focus(), 50);
     };
+
+    // Check sessionStorage on mount for pending chat requests from other pages
+    const pendingChatId = sessionStorage.getItem('pending-cana-chat-id');
+    if (pendingChatId) {
+      sessionStorage.removeItem('pending-cana-chat-id');
+      handleOpenChat(new CustomEvent('open-cana-chat', { detail: { chatId: pendingChatId } }));
+    } else if (sessionStorage.getItem('pending-cana-new-chat')) {
+      sessionStorage.removeItem('pending-cana-new-chat');
+      handleNewChatEvent();
+    }
+
     window.addEventListener('open-cana-chat', handleOpenChat as EventListener);
     window.addEventListener('new-cana-chat', handleNewChatEvent as EventListener);
     return () => {

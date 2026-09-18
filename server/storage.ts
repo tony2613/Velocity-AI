@@ -68,6 +68,8 @@ export interface IStorage {
   getCanaChatsByUserId(userId: string): Promise<CanaChat[]>;
   getCanaChat(id: string): Promise<CanaChat | undefined>;
   updateCanaChatMessages(id: string, messages: any[]): Promise<CanaChat>;
+  deleteCanaChat(id: string, userId: string): Promise<boolean>;
+  clearAllCanaChats(userId: string): Promise<boolean>;
 
   registerActiveSession(userId: string, deviceId: string, sessionId: string, userAgent: string | null): Promise<void>;
   getActiveSessions(userId: string): Promise<UserActiveSession[]>;
@@ -366,6 +368,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(canaChats.id, id))
       .returning();
     return updatedChat;
+  }
+
+  async deleteCanaChat(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(canaChats)
+      .where(and(eq(canaChats.id, id), eq(canaChats.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async clearAllCanaChats(userId: string): Promise<boolean> {
+    await db.delete(canaChats).where(eq(canaChats.userId, userId));
+    return true;
   }
 
   async logUsage(log: InsertUsageLog): Promise<void> {

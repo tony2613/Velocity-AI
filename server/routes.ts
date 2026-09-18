@@ -434,6 +434,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/cana/chats/:id", isAuthenticated, async (req, res) => {
+    try {
+      const deleted = await storage.deleteCanaChat(req.params.id, (req.user as any).id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/cana/chats", isAuthenticated, async (req, res) => {
+    try {
+      await storage.clearAllCanaChats((req.user as any).id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/cana/chat", isAuthenticated, checkSearchLimit, async (req, res) => {
     try {
       const { query, chatId } = req.body;
@@ -444,9 +465,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         chat = await storage.getCanaChat(chatId);
         if (!chat || chat.userId !== userId) return res.status(404).json({ error: "Chat not found" });
       } else {
+        const rawTitle = (query || "").trim().replace(/^[\r\n\t]+/, '');
+        const cleanTitle = rawTitle.replace(/^[.\-_*#\s]+$/, '');
+        const finalTitle = cleanTitle.length > 2
+          ? (cleanTitle.substring(0, 45) + (cleanTitle.length > 45 ? "..." : ""))
+          : "Study Session Discussion";
+
         chat = await storage.createCanaChat({
           userId,
-          title: query.substring(0, 50) + (query.length > 50 ? "..." : "")
+          title: finalTitle
         });
       }
 

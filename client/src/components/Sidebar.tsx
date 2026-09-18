@@ -1,11 +1,13 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame, CalendarDays, X, Plus } from "lucide-react";
+import { Home, BookOpen, BrainCircuit, Settings, ChevronsLeft, Menu, LogOut, Sparkles, Flame, CalendarDays, X, Plus, MessageSquare, Trash2 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PLAN_LIMITS } from "@shared/plans";
 import ThemeToggle from "./ThemeToggle";
 import velocityLogo from "../assets/Velocity-AI-logo.png";
@@ -42,6 +44,79 @@ export default function Sidebar({ isMobileDrawer = false }: SidebarProps) {
     queryKey: ["/api/cana/chats"],
     enabled: !!user
   });
+
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleActiveChat = (e: CustomEvent<{chatId: string | null}>) => {
+      setActiveChatId(e.detail.chatId);
+    };
+    window.addEventListener('cana-active-chat-changed', handleActiveChat as EventListener);
+    return () => {
+      window.removeEventListener('cana-active-chat-changed', handleActiveChat as EventListener);
+    };
+  }, []);
+
+  const deleteChatMutation = useMutation({
+    mutationFn: async (chatId: string) => {
+      const res = await apiRequest("DELETE", `/api/cana/chats/${chatId}`);
+      if (!res.ok) throw new Error("Failed to delete chat");
+      return res.json();
+    },
+    onSuccess: (_, deletedId) => {
+      if (activeChatId === deletedId) {
+        setActiveChatId(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/cana/chats"] });
+    }
+  });
+
+  const clearAllChatsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/cana/chats");
+      if (!res.ok) throw new Error("Failed to clear chats");
+      return res.json();
+    },
+    onSuccess: () => {
+      setActiveChatId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/cana/chats"] });
+    }
+  });
+
+  const openChat = (chatId?: string) => {
+    handleItemClick();
+    if (chatId) {
+      setActiveChatId(chatId);
+      sessionStorage.setItem('pending-cana-chat-id', chatId);
+    } else {
+      setActiveChatId(null);
+      sessionStorage.setItem('pending-cana-new-chat', 'true');
+    }
+
+    if (location !== "/dashboard" && !location.startsWith("/summary/")) {
+      setLocation("/dashboard");
+    }
+
+    setTimeout(() => {
+      if (chatId) {
+        window.dispatchEvent(new CustomEvent('open-cana-chat', { detail: { chatId } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('new-cana-chat'));
+      }
+    }, 100);
+  };
+
+  const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation();
+    deleteChatMutation.mutate(chatId);
+  };
+
+  const formatChatTitle = (rawTitle: string | undefined | null) => {
+    if (!rawTitle) return "Study Conversation";
+    const cleaned = rawTitle.replace(/^[.\-_*#\s]+$/, "").trim();
+    if (!cleaned) return "Study Conversation";
+    return cleaned;
+  };
 
   const upperMenuItems = [
     {
@@ -190,34 +265,79 @@ export default function Sidebar({ isMobileDrawer = false }: SidebarProps) {
               </div>
 
               {/* CANA History List */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 pt-1">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">CANA History</span>
-                  <button 
-                    onClick={() => {
-                      handleItemClick();
-                      window.dispatchEvent(new CustomEvent('new-cana-chat'));
-                    }}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
-                    title="Start New Chat"
-                  >
-                    <Plus className="h-3 w-3" /> New
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar pr-1">
-                  {canaChats?.length ? canaChats.map((chat: any) => (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    CANA History
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {canaChats && canaChats.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => clearAllChatsMutation.mutate()}
+                        className="text-[10px] font-medium text-muted-foreground hover:text-destructive transition-colors px-1 py-0.5 rounded"
+                        title="Clear all CANA chat history"
+                      >
+                        Clear
+                      </button>
+                    )}
                     <button 
-                      key={chat.id}
-                      className="text-left text-xs text-foreground/80 hover:bg-muted/50 hover:text-foreground px-2 py-1.5 rounded-lg truncate transition-colors"
-                      onClick={() => {
-                        handleItemClick();
-                        window.dispatchEvent(new CustomEvent('open-cana-chat', { detail: { chatId: chat.id } }));
-                      }}
+                      type="button"
+                      onClick={() => openChat()}
+                      className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
+                      title="Start New Chat"
                     >
-                      {chat.title}
+                      <Plus className="h-3 w-3" /> New
                     </button>
-                  )) : (
-                    <div className="text-[11px] text-muted-foreground px-2 italic">No past chats</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+                  {canaChats?.length ? canaChats.map((chat: any) => {
+                    const isSelected = activeChatId === chat.id;
+                    const displayTitle = formatChatTitle(chat.title);
+                    return (
+                      <div 
+                        key={chat.id}
+                        role="button"
+                        tabIndex={0}
+                        className={`w-full shrink-0 min-h-[34px] flex items-center justify-between gap-2 text-left text-xs font-medium px-2.5 py-2 rounded-lg transition-all cursor-pointer group select-none ${
+                          isSelected 
+                            ? "bg-primary/15 text-primary border border-primary/25 shadow-sm" 
+                            : "text-foreground/80 hover:bg-muted/70 hover:text-foreground border border-transparent"
+                        }`}
+                        onClick={() => openChat(chat.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openChat(chat.id);
+                          }
+                        }}
+                        title={displayTitle}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <MessageSquare className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                            isSelected ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                          }`} />
+                          <span className="truncate flex-1 text-xs font-medium leading-tight">
+                            {displayTitle}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteChat(e, chat.id)}
+                          className="opacity-0 group-hover:opacity-100 hover:!opacity-100 p-1 rounded hover:bg-destructive/15 hover:text-destructive text-muted-foreground transition-all shrink-0 ml-1"
+                          title="Delete chat"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  }) : (
+                    <div className="text-[11px] text-muted-foreground px-2 py-2.5 italic text-center rounded-lg bg-muted/20 border border-border/30">
+                      No past chats
+                    </div>
                   )}
                 </div>
               </div>
