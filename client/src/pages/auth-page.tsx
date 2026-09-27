@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { insertUserSchema, type InsertUser } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,90 @@ export default function AuthPage() {
     const { t } = useLanguage();
 
     const { toast } = useToast();
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+    useEffect(() => {
+        const handleMessage = async (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type === "VELOCITY_GOOGLE_AUTH_SUCCESS") {
+                setIsGoogleLoading(true);
+                await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                const params = new URLSearchParams(window.location.search);
+                const redirect = params.get("redirect");
+                window.location.replace(redirect ? decodeURIComponent(redirect) : "/dashboard");
+            } else if (event.data?.type === "VELOCITY_GOOGLE_AUTH_ERROR") {
+                setIsGoogleLoading(false);
+                toast({
+                    title: "Authentication Alert",
+                    description: event.data.error || "Unable to sign in with Google.",
+                    variant: "destructive",
+                });
+            }
+        };
+
+        window.addEventListener("message", handleMessage);
+        return () => window.removeEventListener("message", handleMessage);
+    }, [toast]);
+
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        try {
+            if ("serviceWorker" in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) {
+                    await reg.unregister();
+                }
+            }
+            if (typeof window !== "undefined" && "caches" in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        const width = 500;
+        const height = 650;
+        const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+        const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+        const authUrl = "https://velocityaisoftware.app/api/auth/google?popup=1";
+
+        const popup = window.open(
+            authUrl,
+            "google_sign_in",
+            `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no,location=yes`
+        );
+
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+            // Popup blocked by browser, fallback to standard direct redirect
+            window.location.href = "https://velocityaisoftware.app/api/auth/google";
+            return;
+        }
+
+        popup.focus?.();
+
+        const pollTimer = setInterval(async () => {
+            if (popup.closed) {
+                clearInterval(pollTimer);
+                try {
+                    const res = await fetch("/api/user", { credentials: "include" });
+                    if (res.ok) {
+                        const userData = await res.json();
+                        if (userData && userData.id) {
+                            await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                            const params = new URLSearchParams(window.location.search);
+                            const redirect = params.get("redirect");
+                            window.location.replace(redirect ? decodeURIComponent(redirect) : "/dashboard");
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                setIsGoogleLoading(false);
+            }
+        }, 800);
+    };
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -122,27 +206,18 @@ export default function AuthPage() {
                             <Button
                                 variant="outline"
                                 type="button"
+                                disabled={isGoogleLoading}
                                 className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                                onClick={async () => {
-                                    try {
-                                        if ("serviceWorker" in navigator) {
-                                            const regs = await navigator.serviceWorker.getRegistrations();
-                                            for (const reg of regs) {
-                                                await reg.unregister();
-                                            }
-                                        }
-                                        if (typeof window !== "undefined" && "caches" in window) {
-                                            const keys = await caches.keys();
-                                            await Promise.all(keys.map((k) => caches.delete(k)));
-                                        }
-                                    } catch (e) {
-                                        // ignore
-                                    }
-                                    window.location.href = "https://velocityaisoftware.app/api/auth/google";
-                                }}
+                                onClick={handleGoogleSignIn}
                             >
-                                <FaGoogle className="h-4 w-4 text-red-500" />
-                                {t("auth.continue_with_google") || "Continue with Google"}
+                                {isGoogleLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                ) : (
+                                    <FaGoogle className="h-4 w-4 text-red-500" />
+                                )}
+                                {isGoogleLoading
+                                    ? "Signing in with Google..."
+                                    : (t("auth.continue_with_google") || "Continue with Google")}
                             </Button>
                             {/* Hidden iframe to flush any legacy service worker on www. subdomain */}
                             <iframe
@@ -226,7 +301,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
             const res = await apiRequest("POST", "/api/forgot-password", data);
             return res.text();
         },
-        onSuccess: (message) => {
+        onSuccess: (message: string) => {
             toast({
                 title: "Email Sent",
                 description: message,

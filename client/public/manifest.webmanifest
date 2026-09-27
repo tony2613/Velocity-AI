@@ -1,7 +1,10 @@
 {
+  "id": "/",
   "name": "VelocityAI - AI Study Companion",
   "short_name": "VelocityAI",
   "description": "AI-Powered Learning Platform for Notes, Flashcards, and Quizzes",
+  "start_url": "/",
+  "scope": "/",
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",

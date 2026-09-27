@@ -154,7 +154,17 @@ export function setupAuth(app: Express) {
             console.warn("[Passport] Google OAuth is not configured. Redirecting to /auth?error=google_oauth_not_configured");
             return res.redirect("/auth?error=google_oauth_not_configured");
         }
-        passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+        const isPopup = req.query.popup === "1" || req.query.popup === "true";
+        if (isPopup) {
+            (req.session as any).isPopupAuth = true;
+        } else {
+            delete (req.session as any).isPopupAuth;
+        }
+
+        passport.authenticate("google", {
+            scope: ["profile", "email"],
+            state: isPopup ? "popup" : undefined,
+        })(req, res, next);
     });
 
     app.get(
@@ -163,19 +173,75 @@ export function setupAuth(app: Express) {
             if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
                 return res.redirect("/auth?error=google_oauth_not_configured");
             }
+            const isPopup = req.query.state === "popup" || (req.session as any)?.isPopupAuth === true;
+
             passport.authenticate("google", (err: any, user: User | false, info: any) => {
                 if (err) {
                     console.error("[Passport] Google OAuth authentication error:", err);
-                    const errMsg = encodeURIComponent(err.message || "google_auth_failed");
-                    return res.redirect(`/auth?error=${errMsg}`);
+                    const errMsg = err.message || "google_auth_failed";
+                    if (isPopup) {
+                        return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Failed</title></head><body>
+<script>
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: ${JSON.stringify(errMsg)} }, window.location.origin);
+      window.close();
+    } else {
+      window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
+    }
+  } catch(e) {
+    window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
+  }
+</script>
+</body></html>
+                        `.trim());
+                    }
+                    return res.redirect(`/auth?error=${encodeURIComponent(errMsg)}`);
                 }
                 if (!user) {
                     console.warn("[Passport] Google OAuth user not found / denied:", info);
+                    if (isPopup) {
+                        return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Failed</title></head><body>
+<script>
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: "Google account access denied." }, window.location.origin);
+      window.close();
+    } else {
+      window.location.replace("/auth?error=google_auth_failed");
+    }
+  } catch(e) {
+    window.location.replace("/auth?error=google_auth_failed");
+  }
+</script>
+</body></html>
+                        `.trim());
+                    }
                     return res.redirect("/auth?error=google_auth_failed");
                 }
                 req.logIn(user, async (loginErr) => {
                     if (loginErr) {
                         console.error("[Passport] Google OAuth req.logIn error:", loginErr);
+                        if (isPopup) {
+                            return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Login Failed</title></head><body>
+<script>
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: "Session creation failed." }, window.location.origin);
+      window.close();
+    } else {
+      window.location.replace("/auth?error=login_failed");
+    }
+  } catch(e) {
+    window.location.replace("/auth?error=login_failed");
+  }
+</script>
+</body></html>
+                            `.trim());
+                        }
                         return res.redirect("/auth?error=login_failed");
                     }
 
@@ -232,10 +298,78 @@ export function setupAuth(app: Express) {
                             if (saveErr) {
                                 console.error("[Passport] Session save error:", saveErr);
                             }
+                            if (isPopup) {
+                                return res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Signed In - VelocityAI</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+  <p style="font-size: 14px;">Sign-in complete! Returning to VelocityAI...</p>
+  <script>
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, window.location.origin);
+        window.close();
+      } else {
+        window.location.replace("/dashboard");
+      }
+    } catch (e) {
+      window.location.replace("/dashboard");
+    }
+  </script>
+</body>
+</html>
+                                `.trim());
+                            }
                             return res.redirect("/dashboard");
                         });
                     } catch (err) {
                         console.error("[Passport] Google callback post-login error:", err);
+                        if (isPopup) {
+                            return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<script>
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, window.location.origin);
+      window.close();
+    } else {
+      window.location.replace("/dashboard");
+    }
+  } catch(e) {
+    window.location.replace("/dashboard");
+  }
+</script>
+</body></html>
+                            `.trim());
+                        }
                         return res.redirect("/dashboard");
                     }
                 });
