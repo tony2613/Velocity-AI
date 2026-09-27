@@ -28,6 +28,22 @@ export default function AuthPage() {
     const [activeTab, setActiveTab] = useState("login");
     const { t } = useLanguage();
 
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get("error");
+        if (error) {
+            toast({
+                title: "Authentication Alert",
+                description: error === "google_oauth_not_configured"
+                    ? "Google Sign-In is not configured on this server."
+                    : "Unable to sign in with Google. Please try again or use your password.",
+                variant: "destructive",
+            });
+        }
+    }, [toast]);
+
     useEffect(() => {
         if (user) {
             const params = new URLSearchParams(window.location.search);
@@ -107,8 +123,19 @@ export default function AuthPage() {
                                 variant="outline"
                                 type="button"
                                 className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                                onClick={() => {
-                                    window.location.href = "/api/auth/google";
+                                onClick={async () => {
+                                    // Proactively unregister any stale service workers that hijack /api navigation
+                                    if ("serviceWorker" in navigator) {
+                                        try {
+                                            const regs = await navigator.serviceWorker.getRegistrations();
+                                            for (const reg of regs) {
+                                                await reg.unregister();
+                                            }
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                    }
+                                    window.location.assign("/api/auth/google");
                                 }}
                             >
                                 <FaGoogle className="h-4 w-4 text-red-500" />

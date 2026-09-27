@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -68,6 +68,32 @@ function PageLoader() {
   );
 }
 
+function OAuthRedirectHandler() {
+  useEffect(() => {
+    // If a service worker mistakenly served the SPA for this API route,
+    // unregister all service workers and force a hard reload from the network.
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(async (regs) => {
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+        window.location.reload();
+      }).catch(() => {
+        window.location.reload();
+      });
+    } else {
+      window.location.reload();
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <p className="text-sm text-muted-foreground">Connecting to Google Sign-in...</p>
+    </div>
+  );
+}
+
 function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -75,6 +101,9 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/auth" component={AuthPage} />
         <Route path="/reset-password" component={ResetPassword} />
+        {/* OAuth API routes fallback: ensures client never 404s if intercepted by SPA router */}
+        <Route path="/api/auth/google" component={OAuthRedirectHandler} />
+        <Route path="/api/auth/google/callback" component={OAuthRedirectHandler} />
 
         {/* Protected Routes */}
         <ProtectedRoute path="/dashboard" component={Dashboard} />

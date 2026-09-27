@@ -80,9 +80,7 @@ export function setupAuth(app: Express) {
                 {
                     clientID: process.env.GOOGLE_CLIENT_ID,
                     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                    callbackURL: process.env.NODE_ENV === "production"
-                        ? (process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback")
-                        : "/api/auth/google/callback",
+                    callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback",
                     passReqToCallback: true,
                 },
                 async (_req, _accessToken, _refreshToken, profile, done) => {
@@ -145,11 +143,22 @@ export function setupAuth(app: Express) {
     });
 
     // ... inside setupAuth ...
-    app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+    app.get("/api/auth/google", (req, res, next) => {
+        if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+            console.warn("[Passport] Google OAuth is not configured. Redirecting to /auth?error=google_oauth_not_configured");
+            return res.redirect("/auth?error=google_oauth_not_configured");
+        }
+        passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+    });
 
     app.get(
         "/api/auth/google/callback",
-        passport.authenticate("google", { failureRedirect: "/auth" }),
+        (req, res, next) => {
+            if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+                return res.redirect("/auth?error=google_oauth_not_configured");
+            }
+            passport.authenticate("google", { failureRedirect: "/auth?error=google_auth_failed" })(req, res, next);
+        },
         async (req, res, next) => {
             const user = req.user as User;
             if (!user) {

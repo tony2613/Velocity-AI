@@ -10,6 +10,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: null,
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
+      },
       includeAssets: [
         'favicon.ico',
         'favicon.svg',
@@ -85,6 +88,12 @@ export default defineConfig({
     },
   },
   server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

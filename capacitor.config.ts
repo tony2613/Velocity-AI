@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
     webDir: 'dist',
     bundledWebRuntime: false,
     server: {
-        url: 'https://velocity-ai.onrender.com',
+        url: 'https://velocityaisoftware.app',
         cleartext: true
     }
 };
