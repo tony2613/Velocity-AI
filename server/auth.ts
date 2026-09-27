@@ -44,7 +44,7 @@ export function setupAuth(app: Express) {
             maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
             httpOnly: true,
             secure: app.get("env") === "production",
-            sameSite: app.get("env") === "production" ? "none" : "lax",
+            sameSite: "lax",
         },
     };
 
