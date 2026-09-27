@@ -7,14 +7,18 @@ initClientSecurity();
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Register service worker non-blockingly after window load
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((reg) => {
-      // Promptly check for updates so new navigation denylist is applied immediately
-      reg.update().catch(() => {});
-    }).catch((err) => {
-      console.warn("ServiceWorker registration failed:", err);
-    });
-  });
+// Proactively unregister any legacy service workers and clear caches
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      registration.unregister().catch(() => {});
+    }
+  }).catch(() => {});
+}
+if (typeof window !== "undefined" && "caches" in window) {
+  caches.keys().then((keys) => {
+    for (const key of keys) {
+      caches.delete(key).catch(() => {});
+    }
+  }).catch(() => {});
 }

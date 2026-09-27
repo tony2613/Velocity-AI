@@ -75,12 +75,18 @@ export function setupAuth(app: Express) {
     );
 
     if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+        let callbackURL = (process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback").replace("://www.", "://");
+        if (process.env.NODE_ENV === "production" && !callbackURL.startsWith("http")) {
+            callbackURL = "https://velocityaisoftware.app/api/auth/google/callback";
+        }
+        console.log(`[Passport] Initializing GoogleStrategy with callbackURL: ${callbackURL}`);
+
         passport.use(
             new GoogleStrategy(
                 {
                     clientID: process.env.GOOGLE_CLIENT_ID,
                     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                    callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback",
+                    callbackURL,
                     passReqToCallback: true,
                 },
                 async (_req, _accessToken, _refreshToken, profile, done) => {
@@ -157,58 +163,83 @@ export function setupAuth(app: Express) {
             if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
                 return res.redirect("/auth?error=google_oauth_not_configured");
             }
-            passport.authenticate("google", { failureRedirect: "/auth?error=google_auth_failed" })(req, res, next);
-        },
-        async (req, res, next) => {
-            const user = req.user as User;
-            if (!user) {
-                return res.redirect("/auth");
-            }
+            passport.authenticate("google", (err: any, user: User | false, info: any) => {
+                if (err) {
+                    console.error("[Passport] Google OAuth authentication error:", err);
+                    const errMsg = encodeURIComponent(err.message || "google_auth_failed");
+                    return res.redirect(`/auth?error=${errMsg}`);
+                }
+                if (!user) {
+                    console.warn("[Passport] Google OAuth user not found / denied:", info);
+                    return res.redirect("/auth?error=google_auth_failed");
+                }
+                req.logIn(user, async (loginErr) => {
+                    if (loginErr) {
+                        console.error("[Passport] Google OAuth req.logIn error:", loginErr);
+                        return res.redirect("/auth?error=login_failed");
+                    }
 
-            try {
-                // Register active session for Google OAuth user
-                const deviceId = "google-oauth";
-                const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
-                const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
-                const allowedLimit = planLimit !== undefined ? planLimit : 1;
+                    try {
+                        // Register active session for Google OAuth user
+                        const deviceId = "google-oauth";
+                        const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
+                        const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
+                        const allowedLimit = planLimit !== undefined ? planLimit : 1;
 
-                if (allowedLimit !== null) {
-                    const activeSessions = await storage.getActiveSessions(user.id);
-                    const isDeviceAlreadyActive = activeSessions.some(s => s.deviceId === deviceId);
+                        if (allowedLimit !== null) {
+                            try {
+                                const activeSessions = await storage.getActiveSessions(user.id);
+                                const isDeviceAlreadyActive = activeSessions.some(s => s.deviceId === deviceId);
 
-                    if (!isDeviceAlreadyActive && activeSessions.length >= allowedLimit) {
-                        const overflowCount = activeSessions.length - allowedLimit + 1;
-                        const sessionsToDestroy = activeSessions.slice(0, overflowCount);
+                                if (!isDeviceAlreadyActive && activeSessions.length >= allowedLimit) {
+                                    const overflowCount = activeSessions.length - allowedLimit + 1;
+                                    const sessionsToDestroy = activeSessions.slice(0, overflowCount);
 
-                        for (const s of sessionsToDestroy) {
-                            await storage.deleteActiveSessionBySessionId(s.sessionId);
-                            if (req.sessionStore && typeof req.sessionStore.destroy === 'function') {
-                                req.sessionStore.destroy(s.sessionId, (destroyErr) => {
-                                    if (destroyErr) {
-                                        console.error(`Failed to destroy session ${s.sessionId}:`, destroyErr);
+                                    for (const s of sessionsToDestroy) {
+                                        await storage.deleteActiveSessionBySessionId(s.sessionId);
+                                        if (req.sessionStore && typeof req.sessionStore.destroy === 'function') {
+                                            req.sessionStore.destroy(s.sessionId, () => {});
+                                        }
                                     }
-                                });
+                                }
+                            } catch (sessionErr) {
+                                console.error("[Passport] Session cleanup error:", sessionErr);
                             }
                         }
+
+                        try {
+                            await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
+                        } catch (regErr) {
+                            console.error("[Passport] registerActiveSession error:", regErr);
+                        }
+
+                        // Log Usage
+                        try {
+                            storage.logUsage({
+                                userId: user.id,
+                                action: "LOGIN",
+                                tokensInput: 0,
+                                tokensOutput: 0,
+                                cost: 0,
+                                metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'], provider: "google" }),
+                            });
+                        } catch (logErr) {
+                            console.error("[Passport] logUsage error:", logErr);
+                        }
+
+                        // Save session before redirecting to ensure cookie and DB row are committed
+                        req.session.save((saveErr) => {
+                            if (saveErr) {
+                                console.error("[Passport] Session save error:", saveErr);
+                            }
+                            return res.redirect("/dashboard");
+                        });
+                    } catch (err) {
+                        console.error("[Passport] Google callback post-login error:", err);
+                        return res.redirect("/dashboard");
                     }
-                }
-
-                await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
-
-                // Log Usage
-                storage.logUsage({
-                    userId: user.id,
-                    action: "LOGIN",
-                    tokensInput: 0,
-                    tokensOutput: 0,
-                    cost: 0,
-                    metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'], provider: "google" }),
                 });
-
-                res.redirect("/dashboard");
-            } catch (err) {
-                next(err);
-            }
+            })(req, res, next);
         }
     );
 

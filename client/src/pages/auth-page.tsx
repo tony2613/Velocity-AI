@@ -124,23 +124,33 @@ export default function AuthPage() {
                                 type="button"
                                 className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                                 onClick={async () => {
-                                    // Proactively unregister any stale service workers that hijack /api navigation
-                                    if ("serviceWorker" in navigator) {
-                                        try {
+                                    try {
+                                        if ("serviceWorker" in navigator) {
                                             const regs = await navigator.serviceWorker.getRegistrations();
                                             for (const reg of regs) {
                                                 await reg.unregister();
                                             }
-                                        } catch (e) {
-                                            // ignore
                                         }
+                                        if (typeof window !== "undefined" && "caches" in window) {
+                                            const keys = await caches.keys();
+                                            await Promise.all(keys.map((k) => caches.delete(k)));
+                                        }
+                                    } catch (e) {
+                                        // ignore
                                     }
-                                    window.location.assign("/api/auth/google");
+                                    window.location.href = "https://velocityaisoftware.app/api/auth/google";
                                 }}
                             >
                                 <FaGoogle className="h-4 w-4 text-red-500" />
                                 {t("auth.continue_with_google") || "Continue with Google"}
                             </Button>
+                            {/* Hidden iframe to flush any legacy service worker on www. subdomain */}
+                            <iframe
+                                src="https://www.velocityaisoftware.app/unregister-sw.html"
+                                style={{ display: "none", width: 0, height: 0, border: 0 }}
+                                aria-hidden="true"
+                                tabIndex={-1}
+                            />
                         </>
                     )}
                 </CardContent>

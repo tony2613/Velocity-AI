@@ -166,9 +166,10 @@ export function serveStatic(app: Express) {
     express.static(distPath, {
       maxAge: "1d",
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith(".html")) {
-          // Never cache HTML so new deployments take effect immediately
-          res.setHeader("Cache-Control", "no-cache");
+        if (filePath.endsWith(".html") || filePath.endsWith("sw.js") || filePath.endsWith(".webmanifest")) {
+          // Never cache HTML, service workers, or manifests
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
         }
       },
     }),

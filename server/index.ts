@@ -18,6 +18,45 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Canonical Domain Enforcement: redirect www.velocityaisoftware.app to velocityaisoftware.app
+app.use((req, res, next) => {
+  const host = (req.headers.host || "").toLowerCase();
+  if (host.startsWith("www.")) {
+    const cleanHost = host.replace(/^www\./, "");
+    return res.redirect(301, `https://${cleanHost}${req.originalUrl}`);
+  }
+  next();
+});
+
+// Service Worker Kill Switch: unconditionally instruct any legacy service workers to self-destruct
+app.get(["/sw.js", "/service-worker.js"], (_req, res) => {
+  res.setHeader("Content-Type", "application/javascript");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.send(`
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.registration.unregister(),
+      caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))),
+      self.clients.claim()
+    ]).then(() => {
+      return self.clients.matchAll({ type: 'window' }).then((clients) => {
+        for (const client of clients) {
+          client.navigate(client.url);
+        }
+      });
+    })
+  );
+});
+self.addEventListener('fetch', () => {});
+  `.trim());
+});
+
 // Add this if you need rawBody for webhooks etc.
 declare module "http" {
   interface IncomingMessage {

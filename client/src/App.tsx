@@ -70,20 +70,29 @@ function PageLoader() {
 
 function OAuthRedirectHandler() {
   useEffect(() => {
-    // If a service worker mistakenly served the SPA for this API route,
-    // unregister all service workers and force a hard reload from the network.
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then(async (regs) => {
-        for (const reg of regs) {
-          await reg.unregister();
+    const search = window.location.search;
+    const pathname = window.location.pathname;
+    const targetUrl = `https://velocityaisoftware.app${pathname}${search}`;
+
+    const cleanupAndForward = async () => {
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const reg of regs) {
+            await reg.unregister();
+          }
         }
-        window.location.reload();
-      }).catch(() => {
-        window.location.reload();
-      });
-    } else {
-      window.location.reload();
-    }
+        if (typeof window !== "undefined" && "caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch (e) {
+        // ignore
+      }
+      window.location.replace(targetUrl);
+    };
+
+    cleanupAndForward();
   }, []);
 
   return (
