@@ -30,124 +30,87 @@ export default function AuthPage() {
 
     const { toast } = useToast();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-    const [gsiButtonRendered, setGsiButtonRendered] = useState(false);
-
-    const handleCredentialSuccess = async (credential: string) => {
-        setIsGoogleLoading(true);
-        try {
-            const deviceId = localStorage.getItem("velocity_device_id") || "google-gis";
-            const res = await fetch("/api/auth/google/credential", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ credential, deviceId }),
-                credentials: "include",
-            });
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || "Google Sign-In failed");
-            }
-            const data = await res.json();
-            queryClient.setQueryData(["/api/user"], data.user);
-            await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-            const params = new URLSearchParams(window.location.search);
-            const redirect = params.get("redirect");
-            window.location.replace(redirect ? decodeURIComponent(redirect) : "/dashboard");
-        } catch (err: any) {
-            setIsGoogleLoading(false);
-            toast({
-                title: "Authentication Failed",
-                description: err.message || "Unable to sign in with Google.",
-                variant: "destructive",
-            });
-        }
-    };
-
     useEffect(() => {
-        let isCancelled = false;
-
-        async function initGoogle() {
-            try {
-                if (typeof window !== "undefined") {
-                    const hostname = window.location.hostname.toLowerCase();
-                    if (hostname.includes("onrender.com") || hostname.startsWith("www.")) {
-                        window.location.replace(`https://velocityaisoftware.app${window.location.pathname}${window.location.search}`);
-                        return;
+        const handleMessage = async (event: MessageEvent) => {
+            if (event.data?.type === "VELOCITY_GOOGLE_AUTH_SUCCESS") {
+                setIsGoogleLoading(true);
+                try {
+                    const res = await fetch("/api/user", { credentials: "include" });
+                    if (res.ok) {
+                        const userData = await res.json();
+                        queryClient.setQueryData(["/api/user"], userData);
                     }
+                } catch (e) {
+                    // ignore
                 }
-
-                const res = await fetch("/api/auth/google/config");
-                if (!res.ok) return;
-                const config = await res.json();
-                if (!config.enabled || !config.clientId) return;
-
-                const checkGoogle = () => {
-                    if (isCancelled) return;
-                    const google = (window as any).google;
-                    if (google?.accounts?.id) {
-                        try {
-                            google.accounts.id.initialize({
-                                client_id: config.clientId,
-                                callback: (response: any) => {
-                                    if (response?.credential) {
-                                        handleCredentialSuccess(response.credential);
-                                    }
-                                },
-                                auto_select: false,
-                                cancel_on_tap_outside: true,
-                            });
-
-                            const container = document.getElementById("google-gsi-container");
-                            if (container && !container.hasChildNodes()) {
-                                google.accounts.id.renderButton(container, {
-                                    type: "standard",
-                                    theme: document.documentElement.classList.contains("dark") ? "filled_black" : "outline",
-                                    size: "large",
-                                    width: 384,
-                                    text: "continue_with",
-                                    shape: "rectangular",
-                                    logo_alignment: "left",
-                                });
-                                setGsiButtonRendered(true);
-                            }
-                        } catch (e) {
-                            console.warn("[GSI] Initialization error:", e);
-                        }
-                    } else {
-                        setTimeout(checkGoogle, 150);
-                    }
-                };
-                checkGoogle();
-            } catch (e) {
-                // ignore
+                await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                const params = new URLSearchParams(window.location.search);
+                const redirect = params.get("redirect");
+                window.location.replace(redirect ? decodeURIComponent(redirect) : "/dashboard");
+            } else if (event.data?.type === "VELOCITY_GOOGLE_AUTH_ERROR") {
+                setIsGoogleLoading(false);
+                toast({
+                    title: "Authentication Alert",
+                    description: event.data.error || "Unable to sign in with Google.",
+                    variant: "destructive",
+                });
             }
-        }
-
-        initGoogle();
-
-        return () => {
-            isCancelled = true;
         };
+
+        window.addEventListener("message", handleMessage);
+        return () => window.removeEventListener("message", handleMessage);
     }, [toast]);
 
     const handleGoogleSignIn = () => {
         setIsGoogleLoading(true);
-        if (typeof window !== "undefined") {
-            const hostname = window.location.hostname.toLowerCase();
-            if (hostname.includes("onrender.com") || hostname.startsWith("www.")) {
-                window.location.replace(`https://velocityaisoftware.app/api/auth/google`);
-                return;
-            }
+
+        const width = 500;
+        const height = 650;
+        const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+        const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+        const authUrl = `${window.location.origin}/api/auth/google?popup=1`;
+
+        let popup: Window | null = null;
+        try {
+            popup = window.open(
+                authUrl,
+                "google_sign_in",
+                `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no,location=yes`
+            );
+        } catch (e) {
+            popup = null;
         }
-        const google = (window as any).google;
-        if (google?.accounts?.id) {
-            google.accounts.id.prompt((notification: any) => {
-                if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                    window.location.href = "/api/auth/google";
-                }
-            });
-        } else {
+
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+            // Popup blocked by browser (e.g. mobile Safari / Chrome setting), fallback to standard direct redirect
             window.location.href = "/api/auth/google";
+            return;
         }
+
+        popup.focus?.();
+
+        const pollTimer = setInterval(async () => {
+            if (!popup || popup.closed) {
+                clearInterval(pollTimer);
+                try {
+                    const res = await fetch("/api/user", { credentials: "include" });
+                    if (res.ok) {
+                        const userData = await res.json();
+                        if (userData && userData.id) {
+                            queryClient.setQueryData(["/api/user"], userData);
+                            await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                            const params = new URLSearchParams(window.location.search);
+                            const redirect = params.get("redirect");
+                            window.location.replace(redirect ? decodeURIComponent(redirect) : "/dashboard");
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                setIsGoogleLoading(false);
+            }
+        }, 800);
     };
 
     useEffect(() => {
@@ -239,27 +202,22 @@ export default function AuthPage() {
                                     </span>
                                 </div>
                             </div>
-                            <div className="w-full flex flex-col items-center gap-2">
-                                <div id="google-gsi-container" className="w-full flex justify-center min-h-[44px]" />
-                                {!gsiButtonRendered && (
-                                    <Button
-                                        variant="outline"
-                                        type="button"
-                                        disabled={isGoogleLoading}
-                                        className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                                        onClick={handleGoogleSignIn}
-                                    >
-                                        {isGoogleLoading ? (
-                                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                                        ) : (
-                                            <FaGoogle className="h-4 w-4 text-red-500" />
-                                        )}
-                                        {isGoogleLoading
-                                            ? "Signing in with Google..."
-                                            : (t("auth.continue_with_google") || "Continue with Google")}
-                                    </Button>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                disabled={isGoogleLoading}
+                                className="w-full gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                onClick={handleGoogleSignIn}
+                            >
+                                {isGoogleLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                ) : (
+                                    <FaGoogle className="h-4 w-4 text-red-500" />
                                 )}
-                            </div>
+                                {isGoogleLoading
+                                    ? "Signing in with Google..."
+                                    : (t("auth.continue_with_google") || "Continue with Google")}
+                            </Button>
                             {/* Hidden iframe to flush any legacy service worker on www. subdomain */}
                             <iframe
                                 src="https://www.velocityaisoftware.app/unregister-sw.html"

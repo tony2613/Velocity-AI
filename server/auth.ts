@@ -297,8 +297,16 @@ export function setupAuth(app: Express) {
             return res.redirect("/auth?error=google_oauth_not_configured");
         }
 
+        const isPopup = req.query.popup === "1" || req.query.popup === "true";
+        if (isPopup) {
+            (req.session as any).isPopupAuth = true;
+        } else {
+            delete (req.session as any).isPopupAuth;
+        }
+
         passport.authenticate("google", {
             scope: ["profile", "email"],
+            state: isPopup ? "popup" : undefined,
         })(req, res, next);
     });
 
@@ -309,19 +317,81 @@ export function setupAuth(app: Express) {
                 return res.redirect("/auth?error=google_oauth_not_configured");
             }
 
+            const isPopup = req.query.state === "popup" || (req.session as any)?.isPopupAuth === true;
+            delete (req.session as any)?.isPopupAuth;
+
             passport.authenticate("google", (err: any, user: User | false, info: any) => {
                 if (err) {
                     console.error("[Passport] Google OAuth authentication error:", err);
                     const errMsg = err.message || "google_auth_failed";
+                    if (isPopup) {
+                        return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Alert</title></head><body style="background:#09090b;color:#fafafa;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <p style="font-size:14px;color:#ef4444;">Authentication failed. Closing...</p>
+  <script>
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: ${JSON.stringify(errMsg)} }, "*");
+        setTimeout(() => { window.close(); }, 500);
+      } else {
+        window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
+      }
+    } catch(e) {
+      window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
+    }
+  </script>
+</body></html>
+                        `.trim());
+                    }
                     return res.redirect(`/auth?error=${encodeURIComponent(errMsg)}`);
                 }
                 if (!user) {
                     console.warn("[Passport] Google OAuth user not found / denied:", info);
+                    const errMsg = "Google account access denied.";
+                    if (isPopup) {
+                        return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Alert</title></head><body style="background:#09090b;color:#fafafa;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <p style="font-size:14px;color:#ef4444;">Access denied. Closing...</p>
+  <script>
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: ${JSON.stringify(errMsg)} }, "*");
+        setTimeout(() => { window.close(); }, 500);
+      } else {
+        window.location.replace("/auth?error=google_auth_failed");
+      }
+    } catch(e) {
+      window.location.replace("/auth?error=google_auth_failed");
+    }
+  </script>
+</body></html>
+                        `.trim());
+                    }
                     return res.redirect("/auth?error=google_auth_failed");
                 }
                 req.logIn(user, async (loginErr) => {
                     if (loginErr) {
                         console.error("[Passport] Google OAuth req.logIn error:", loginErr);
+                        const errMsg = "Session creation failed.";
+                        if (isPopup) {
+                            return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Login Alert</title></head><body style="background:#09090b;color:#fafafa;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <p style="font-size:14px;color:#ef4444;">Login failed. Closing...</p>
+  <script>
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: ${JSON.stringify(errMsg)} }, "*");
+        setTimeout(() => { window.close(); }, 500);
+      } else {
+        window.location.replace("/auth?error=login_failed");
+      }
+    } catch(e) {
+      window.location.replace("/auth?error=login_failed");
+    }
+  </script>
+</body></html>
+                            `.trim());
+                        }
                         return res.redirect("/auth?error=login_failed");
                     }
 
@@ -375,30 +445,78 @@ export function setupAuth(app: Express) {
                             if (saveErr) {
                                 console.error("[Passport] Session save error:", saveErr);
                             }
-                            return res.send(`
+                            if (isPopup) {
+                                return res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard – VelocityAI</title>
-  <meta http-equiv="refresh" content="0; url=/dashboard">
+  <title>Signed In - VelocityAI</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #09090b;
+      color: #fafafa;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
-<body style="background:#09090b;color:#fafafa;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="text-align:center;">
-    <div style="width:28px;height:28px;border:3px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div>
-    <p style="font-size:14px;color:#a1a1aa;">Signing in to VelocityAI...</p>
-  </div>
-  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+<body>
+  <div class="spinner"></div>
+  <p style="font-size: 14px; color: #a1a1aa;">Sign-in complete! Returning to VelocityAI...</p>
   <script>
-    window.location.replace("/dashboard");
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, "*");
+        setTimeout(() => { window.close(); }, 300);
+      } else {
+        window.location.replace("/dashboard");
+      }
+    } catch (e) {
+      window.location.replace("/dashboard");
+    }
   </script>
 </body>
 </html>
-                            `.trim());
+                                `.trim());
+                            }
+                            return res.redirect("/dashboard");
                         });
                     } catch (err) {
                         console.error("[Passport] Google callback post-login error:", err);
+                        if (isPopup) {
+                            return res.send(`
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background:#09090b;color:#fafafa;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+<script>
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, "*");
+      setTimeout(() => { window.close(); }, 300);
+    } else {
+      window.location.replace("/dashboard");
+    }
+  } catch(e) {
+    window.location.replace("/dashboard");
+  }
+</script>
+</body></html>
+                            `.trim());
+                        }
                         return res.redirect("/dashboard");
                     }
                 });
