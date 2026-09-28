@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import Footer from "@/components/Footer";
 import NoteCard from "@/components/NoteCard";
+import SEO from "@/components/SEO";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -141,8 +142,16 @@ export default function Dashboard() {
     });
   };
 
+  useEffect(() => {
+    // If arriving from an external redirect or has auth query, replace history state
+    if (window.history.length > 1 && (document.referrer.includes("/auth") || window.location.search.includes("redirect"))) {
+      window.history.replaceState(null, "", "/dashboard");
+    }
+  }, []);
+
   return (
     <AppLayout>
+      <SEO title={t("common.dashboard") || "Dashboard"} canonicalPath="/dashboard" />
       <OnboardingTutorial />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36 md:pb-12 space-y-8 w-full">
         {/* Header Section */}

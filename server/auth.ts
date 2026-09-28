@@ -148,22 +148,157 @@ export function setupAuth(app: Express) {
         }
     });
 
-    // ... inside setupAuth ...
+    app.get("/api/auth/google/config", (_req, res) => {
+        const enabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+        return res.json({
+            enabled,
+            clientId: process.env.GOOGLE_CLIENT_ID || null,
+        });
+    });
+
+    app.post("/api/auth/google/credential", async (req, res) => {
+        try {
+            const { credential, deviceId: rawDeviceId } = req.body;
+            if (!credential) {
+                return res.status(400).json({ error: "Missing Google credential token" });
+            }
+            if (!process.env.GOOGLE_CLIENT_ID) {
+                return res.status(500).json({ error: "Google Sign-In is not configured on this server" });
+            }
+
+            // Verify Google ID token via Google official tokeninfo API
+            const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+            if (!tokenRes.ok) {
+                const errData = await tokenRes.json().catch(() => ({}));
+                console.error("[Passport] Google tokeninfo verification failed:", errData);
+                return res.status(401).json({ error: "Google verification failed. Invalid token." });
+            }
+
+            const payload: any = await tokenRes.json();
+
+            // Verify audience and issuer
+            if (payload.aud !== process.env.GOOGLE_CLIENT_ID) {
+                console.error("[Passport] Google token audience mismatch:", payload.aud, "expected:", process.env.GOOGLE_CLIENT_ID);
+                return res.status(401).json({ error: "Google verification failed. Audience mismatch." });
+            }
+
+            const validIssuers = ["accounts.google.com", "https://accounts.google.com"];
+            if (!validIssuers.includes(payload.iss)) {
+                console.error("[Passport] Google token invalid issuer:", payload.iss);
+                return res.status(401).json({ error: "Google verification failed. Invalid token issuer." });
+            }
+
+            const email = payload.email;
+            if (!email) {
+                return res.status(400).json({ error: "No email address found in Google account." });
+            }
+
+            const googleId = payload.sub;
+
+            // 1. Check if user already exists by Google ID
+            let user = await storage.getUserByGoogleId(googleId);
+            if (!user) {
+                // 2. Check if user already exists by email
+                user = await storage.getUserByEmail(email);
+                if (user) {
+                    user = await storage.updateUserGoogleId(user.id, googleId);
+                } else {
+                    // 3. Create new user with Google details
+                    const displayName = payload.name || payload.given_name || email.split("@")[0];
+                    let cleanUsername = displayName.replace(/[^a-zA-Z0-9_-]/g, "");
+                    if (!cleanUsername) cleanUsername = "user";
+                    let candidate = cleanUsername;
+                    let count = 1;
+                    while (await storage.getUserByUsername(candidate)) {
+                        candidate = `${cleanUsername}${count++}`;
+                    }
+                    user = await storage.createUser({
+                        username: candidate,
+                        email,
+                        googleId,
+                        isVerified: true,
+                    });
+                }
+            }
+
+            req.logIn(user, async (loginErr) => {
+                if (loginErr) {
+                    console.error("[Passport] Google GIS req.logIn error:", loginErr);
+                    return res.status(500).json({ error: "Session creation failed" });
+                }
+
+                try {
+                    const deviceId = rawDeviceId || "google-gis";
+                    const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
+                    const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
+                    const allowedLimit = planLimit !== undefined ? planLimit : 1;
+
+                    if (allowedLimit !== null) {
+                        try {
+                            const activeSessions = await storage.getActiveSessions(user.id);
+                            const isDeviceAlreadyActive = activeSessions.some(s => s.deviceId === deviceId);
+
+                            if (!isDeviceAlreadyActive && activeSessions.length >= allowedLimit) {
+                                const overflowCount = activeSessions.length - allowedLimit + 1;
+                                const sessionsToDestroy = activeSessions.slice(0, overflowCount);
+
+                                for (const s of sessionsToDestroy) {
+                                    await storage.deleteActiveSessionBySessionId(s.sessionId);
+                                    if (req.sessionStore && typeof req.sessionStore.destroy === 'function') {
+                                        req.sessionStore.destroy(s.sessionId, () => {});
+                                    }
+                                }
+                            }
+                        } catch (sessionErr) {
+                            console.error("[Passport] Session cleanup error:", sessionErr);
+                        }
+                    }
+
+                    try {
+                        await storage.registerActiveSession(user.id, deviceId, req.sessionID, req.headers['user-agent'] || null);
+                    } catch (regErr) {
+                        console.error("[Passport] registerActiveSession error:", regErr);
+                    }
+
+                    try {
+                        storage.logUsage({
+                            userId: user.id,
+                            action: "LOGIN",
+                            tokensInput: 0,
+                            tokensOutput: 0,
+                            cost: 0,
+                            metadata: JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'], provider: "google-gis" }),
+                        });
+                    } catch (logErr) {
+                        console.error("[Passport] logUsage error:", logErr);
+                    }
+
+                    req.session.save((saveErr) => {
+                        if (saveErr) {
+                            console.error("[Passport] Session save error:", saveErr);
+                            return res.status(500).json({ error: "Session save failed" });
+                        }
+                        return res.json({ ok: true, user: sanitizeUser(user) });
+                    });
+                } catch (err: any) {
+                    console.error("[Passport] Post-login registration error:", err);
+                    return res.json({ ok: true, user: sanitizeUser(user) });
+                }
+            });
+        } catch (err: any) {
+            console.error("[Passport] /api/auth/google/credential error:", err);
+            return res.status(500).json({ error: err.message || "Authentication error" });
+        }
+    });
+
     app.get("/api/auth/google", (req, res, next) => {
         if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
             console.warn("[Passport] Google OAuth is not configured. Redirecting to /auth?error=google_oauth_not_configured");
             return res.redirect("/auth?error=google_oauth_not_configured");
         }
-        const isPopup = req.query.popup === "1" || req.query.popup === "true";
-        if (isPopup) {
-            (req.session as any).isPopupAuth = true;
-        } else {
-            delete (req.session as any).isPopupAuth;
-        }
 
         passport.authenticate("google", {
             scope: ["profile", "email"],
-            state: isPopup ? "popup" : undefined,
         })(req, res, next);
     });
 
@@ -173,80 +308,24 @@ export function setupAuth(app: Express) {
             if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
                 return res.redirect("/auth?error=google_oauth_not_configured");
             }
-            const isPopup = req.query.state === "popup" || (req.session as any)?.isPopupAuth === true;
 
             passport.authenticate("google", (err: any, user: User | false, info: any) => {
                 if (err) {
                     console.error("[Passport] Google OAuth authentication error:", err);
                     const errMsg = err.message || "google_auth_failed";
-                    if (isPopup) {
-                        return res.send(`
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Failed</title></head><body>
-<script>
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: ${JSON.stringify(errMsg)} }, window.location.origin);
-      window.close();
-    } else {
-      window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
-    }
-  } catch(e) {
-    window.location.replace("/auth?error=" + encodeURIComponent(${JSON.stringify(errMsg)}));
-  }
-</script>
-</body></html>
-                        `.trim());
-                    }
                     return res.redirect(`/auth?error=${encodeURIComponent(errMsg)}`);
                 }
                 if (!user) {
                     console.warn("[Passport] Google OAuth user not found / denied:", info);
-                    if (isPopup) {
-                        return res.send(`
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentication Failed</title></head><body>
-<script>
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: "Google account access denied." }, window.location.origin);
-      window.close();
-    } else {
-      window.location.replace("/auth?error=google_auth_failed");
-    }
-  } catch(e) {
-    window.location.replace("/auth?error=google_auth_failed");
-  }
-</script>
-</body></html>
-                        `.trim());
-                    }
                     return res.redirect("/auth?error=google_auth_failed");
                 }
                 req.logIn(user, async (loginErr) => {
                     if (loginErr) {
                         console.error("[Passport] Google OAuth req.logIn error:", loginErr);
-                        if (isPopup) {
-                            return res.send(`
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Login Failed</title></head><body>
-<script>
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_ERROR", error: "Session creation failed." }, window.location.origin);
-      window.close();
-    } else {
-      window.location.replace("/auth?error=login_failed");
-    }
-  } catch(e) {
-    window.location.replace("/auth?error=login_failed");
-  }
-</script>
-</body></html>
-                            `.trim());
-                        }
                         return res.redirect("/auth?error=login_failed");
                     }
 
                     try {
-                        // Register active session for Google OAuth user
                         const deviceId = "google-oauth";
                         const tier = (user.subscriptionTier || 'free') as 'free' | 'pro' | 'elite';
                         const planLimit = PLAN_LIMITS[tier]?.deviceLimit;
@@ -279,7 +358,6 @@ export function setupAuth(app: Express) {
                             console.error("[Passport] registerActiveSession error:", regErr);
                         }
 
-                        // Log Usage
                         try {
                             storage.logUsage({
                                 userId: user.id,
@@ -293,83 +371,34 @@ export function setupAuth(app: Express) {
                             console.error("[Passport] logUsage error:", logErr);
                         }
 
-                        // Save session before redirecting to ensure cookie and DB row are committed
                         req.session.save((saveErr) => {
                             if (saveErr) {
                                 console.error("[Passport] Session save error:", saveErr);
                             }
-                            if (isPopup) {
-                                return res.send(`
+                            return res.send(`
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Signed In - VelocityAI</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      background: #09090b;
-      color: #fafafa;
-    }
-    .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid rgba(255,255,255,0.2);
-      border-top-color: #3b82f6;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-bottom: 12px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard – VelocityAI</title>
+  <meta http-equiv="refresh" content="0; url=/dashboard">
 </head>
-<body>
-  <div class="spinner"></div>
-  <p style="font-size: 14px;">Sign-in complete! Returning to VelocityAI...</p>
+<body style="background:#09090b;color:#fafafa;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="text-align:center;">
+    <div style="width:28px;height:28px;border:3px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div>
+    <p style="font-size:14px;color:#a1a1aa;">Signing in to VelocityAI...</p>
+  </div>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
   <script>
-    try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, window.location.origin);
-        window.close();
-      } else {
-        window.location.replace("/dashboard");
-      }
-    } catch (e) {
-      window.location.replace("/dashboard");
-    }
+    window.location.replace("/dashboard");
   </script>
 </body>
 </html>
-                                `.trim());
-                            }
-                            return res.redirect("/dashboard");
+                            `.trim());
                         });
                     } catch (err) {
                         console.error("[Passport] Google callback post-login error:", err);
-                        if (isPopup) {
-                            return res.send(`
-<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
-<script>
-  try {
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: "VELOCITY_GOOGLE_AUTH_SUCCESS" }, window.location.origin);
-      window.close();
-    } else {
-      window.location.replace("/dashboard");
-    }
-  } catch(e) {
-    window.location.replace("/dashboard");
-  }
-</script>
-</body></html>
-                            `.trim());
-                        }
                         return res.redirect("/dashboard");
                     }
                 });
