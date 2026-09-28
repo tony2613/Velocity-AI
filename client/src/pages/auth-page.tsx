@@ -67,6 +67,14 @@ export default function AuthPage() {
 
         async function initGoogle() {
             try {
+                if (typeof window !== "undefined") {
+                    const hostname = window.location.hostname.toLowerCase();
+                    if (hostname.includes("onrender.com") || hostname.startsWith("www.")) {
+                        window.location.replace(`https://velocityaisoftware.app${window.location.pathname}${window.location.search}`);
+                        return;
+                    }
+                }
+
                 const res = await fetch("/api/auth/google/config");
                 if (!res.ok) return;
                 const config = await res.json();
@@ -123,6 +131,13 @@ export default function AuthPage() {
 
     const handleGoogleSignIn = () => {
         setIsGoogleLoading(true);
+        if (typeof window !== "undefined") {
+            const hostname = window.location.hostname.toLowerCase();
+            if (hostname.includes("onrender.com") || hostname.startsWith("www.")) {
+                window.location.replace(`https://velocityaisoftware.app/api/auth/google`);
+                return;
+            }
+        }
         const google = (window as any).google;
         if (google?.accounts?.id) {
             google.accounts.id.prompt((notification: any) => {

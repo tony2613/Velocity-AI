@@ -148,6 +148,20 @@ function Router() {
 
 
 
+function CanonicalDomainEnforcer() {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname.toLowerCase();
+      if (hostname.includes("onrender.com") || hostname.startsWith("www.")) {
+        const cleanHost = "velocityaisoftware.app";
+        const target = `https://${cleanHost}${window.location.pathname}${window.location.search}${window.location.hash}`;
+        window.location.replace(target);
+      }
+    }
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -156,6 +170,7 @@ function App() {
           <LanguageProvider>
             <TooltipProvider>
               <SidebarProvider>
+                <CanonicalDomainEnforcer />
                 <GlobalStudyTimerWrapper />
                 <FloatingCanaWrapper />
                 <IosInstallPrompt />

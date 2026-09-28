@@ -18,12 +18,16 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Canonical Domain Enforcement: redirect www.velocityaisoftware.app to velocityaisoftware.app
+// Canonical Domain Enforcement: redirect www.velocityaisoftware.app and *.onrender.com to velocityaisoftware.app
 app.use((req, res, next) => {
+  // Allow health check endpoint for Render internal monitor
+  if (req.path === "/health") {
+    return next();
+  }
+
   const host = (req.headers.host || "").toLowerCase();
-  if (host.startsWith("www.")) {
-    const cleanHost = host.replace(/^www\./, "");
-    return res.redirect(301, `https://${cleanHost}${req.originalUrl}`);
+  if (host.startsWith("www.") || host.includes("onrender.com")) {
+    return res.redirect(301, `https://velocityaisoftware.app${req.originalUrl}`);
   }
   next();
 });
