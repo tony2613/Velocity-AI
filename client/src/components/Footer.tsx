@@ -25,28 +25,28 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.summarization.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.quiz.title")}</a></Link></li>
-              <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.calendar.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.planner.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.weakness.title")}</a></Link></li>
-              <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.org.title")}</a></Link></li>
               <li><Link href="/features"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("feature.export.title")}</a></Link></li>
+              <li><Link href="/pricing"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block font-medium text-foreground/90">{t("nav.pricing") || "Plans & Pricing"}</a></Link></li>
             </ul>
           </div>
           <div>
             <h3 className="font-semibold mb-4">{t("footer.resources")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/help"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.help")}</a></Link></li>
-              <li><Link href="/blog"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("nav.blog")}</a></Link></li>
+              <li><Link href="/get-started"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block font-medium text-foreground/90">Getting Started Guide</a></Link></li>
               <li><Link href="/tutorials"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("nav.tutorials")}</a></Link></li>
+              <li><Link href="/blog"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("nav.blog")}</a></Link></li>
               <li><Link href="/faq"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("nav.faq")}</a></Link></li>
+              <li><Link href="/help"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.help")}</a></Link></li>
             </ul>
           </div>
           <div>
             <h3 className="font-semibold mb-4">{t("footer.legal")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
+              <li><Link href="/contact"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.contact")}</a></Link></li>
               <li><Link href="/privacy"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.privacy")}</a></Link></li>
               <li><Link href="/terms"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.terms")}</a></Link></li>
-              <li><Link href="/contact"><a className="hover-elevate active-elevate-2 rounded px-1 py-0.5 inline-block">{t("footer.contact")}</a></Link></li>
             </ul>
           </div>
         </div>

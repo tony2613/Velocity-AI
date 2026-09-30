@@ -113,16 +113,22 @@ export default function Navbar() {
             {!user && (
               <div className="hidden md:flex items-center gap-1">
                 <Link href="/features">
-                  <Button variant="ghost" className="text-sm font-semibold px-4 py-2">{t("nav.features")}</Button>
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">{t("nav.features")}</Button>
                 </Link>
                 <Link href="/pricing">
-                  <Button variant="ghost" className="text-sm font-semibold px-4 py-2">{t("nav.pricing")}</Button>
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">{t("nav.pricing")}</Button>
                 </Link>
-                <Link href="/faq">
-                  <Button variant="ghost" className="text-sm font-semibold px-4 py-2">{t("nav.faq")}</Button>
+                <Link href="/get-started">
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">Get Started</Button>
+                </Link>
+                <Link href="/tutorials">
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">{t("nav.tutorials")}</Button>
                 </Link>
                 <Link href="/blog">
-                  <Button variant="ghost" className="text-sm font-semibold px-4 py-2">{t("nav.blog")}</Button>
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">{t("nav.blog")}</Button>
+                </Link>
+                <Link href="/faq">
+                  <Button variant="ghost" className="text-sm font-semibold px-3 py-2">{t("nav.faq")}</Button>
                 </Link>
               </div>
             )}

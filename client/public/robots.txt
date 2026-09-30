@@ -13,6 +13,7 @@ Allow: /get-started
 Allow: /contact
 Allow: /privacy
 Allow: /terms
+Allow: /auth
 
 # Disallow authenticated, user-specific study data to protect user privacy
 Disallow: /dashboard
@@ -25,7 +26,6 @@ Disallow: /settings
 Disallow: /summary/
 Disallow: /quiz/
 Disallow: /quizzes
-Disallow: /auth
 
 # AI Answer Engines & Search Bots (Google AI Overview, ChatGPT Search, Perplexity, Claude, Apple Intelligence)
 User-agent: Googlebot

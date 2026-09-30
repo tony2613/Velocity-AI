@@ -7,14 +7,36 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+// Trust reverse proxy (Render, Cloudflare, load balancers) so req.secure and req.protocol accurately reflect HTTPS
+app.set("trust proxy", 1);
+
 app.use(compression());
 
-// Security Headers
+// Security Headers: HSTS, Clickjacking, MIME-sniffing, XSS protection, and Referrer Policy
 app.use((_req, res, next) => {
+  // HTTP Strict Transport Security: 1 year, includes all subdomains (e.g. www), and preload-ready
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains; preload"
+  );
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
+// Enforce HTTPS in production behind reverse proxies
+app.use((req, res, next) => {
+  if (req.path === "/health") {
+    return next();
+  }
+  const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+  if (!isHttps && process.env.NODE_ENV === "production") {
+    const host = (req.headers.host || "").toLowerCase();
+    const targetHost = host.startsWith("www.") ? "velocityaisoftware.app" : host;
+    return res.redirect(301, `https://${targetHost}${req.originalUrl}`);
+  }
   next();
 });
 

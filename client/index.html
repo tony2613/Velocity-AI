@@ -7,32 +7,8 @@
   <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
   <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
 
-  <!-- Google tag (gtag.js) - loaded on first interaction or delayed timeout to preserve TBT and main thread -->
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-PKP9YKF18K');
-
-    (function() {
-      var loaded = false;
-      function loadGtag() {
-        if (loaded) return;
-        loaded = true;
-        ['scroll', 'touchstart', 'pointerdown', 'keydown'].forEach(function(e) {
-          window.removeEventListener(e, loadGtag);
-        });
-        var s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-PKP9YKF18K';
-        document.head.appendChild(s);
-      }
-      ['scroll', 'touchstart', 'pointerdown', 'keydown'].forEach(function(e) {
-        window.addEventListener(e, loadGtag, { once: true, passive: true });
-      });
-      setTimeout(loadGtag, 8000);
-    })();
-  </script>
+  <!-- Google tag (gtag.js) - externalized for performance and text-to-code ratio -->
+  <script defer src="/gtm.js"></script>
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -45,17 +21,7 @@
   <meta name="author" content="Velocity AI" />
 
   <!-- Theme Detection (Prevents theme flash on initial render) -->
-  <script>
-    (function() {
-      try {
-        var theme = localStorage.getItem('vite-ui-theme');
-        var supportDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (theme === 'dark' || (!theme && supportDark)) {
-          document.documentElement.classList.add('dark');
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <script>try{var t=localStorage.getItem('vite-ui-theme'),d=window.matchMedia('(prefers-color-scheme: dark)').matches;(t==='dark'||(!t&&d))&&document.documentElement.classList.add('dark')}catch(e){}</script>
 
   <!-- Canonical -->
   <link rel="canonical" href="https://velocityaisoftware.app/" />
@@ -63,7 +29,7 @@
   <!-- Verification Tags -->
   <meta name="msvalidate.01" content="126AE45CBFE9238E899DF070A7FF30E4" />
 
-  <!-- Open Graph (static fallback for social scrapers & search engines) -->
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Velocity AI" />
   <meta property="og:title" content="Velocity AI (VelocityAI) – Official Website | AI Study Engine & Exam Prep" />
@@ -79,117 +45,10 @@
     content="The official Velocity AI (VelocityAI) study platform. Transform lecture notes, PDFs, and textbooks into AI summaries, active recall practice quizzes, and adaptive exam schedules." />
   <meta name="twitter:image" content="https://velocityaisoftware.app/pwa-512x512.png" />
 
-  <!-- Structured Data for Google Search & Google AI Overview -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "SoftwareApplication",
-        "@id": "https://velocityaisoftware.app/#software",
-        "name": "Velocity AI",
-        "alternateName": ["VelocityAI", "Velocity AI Software", "velocityaisoftware.app"],
-        "url": "https://velocityaisoftware.app",
-        "applicationCategory": "EducationalApplication",
-        "operatingSystem": "Web, iOS, Android, macOS, Windows",
-        "description": "VelocityAI is an AI-powered study engine that transforms textbooks, lecture slides, and academic PDFs into concise summaries, active recall quizzes, adaptive study schedules, and weakness diagnostic trackers.",
-        "screenshot": "https://velocityaisoftware.app/pwa-512x512.png",
-        "featureList": [
-          "AI Summarization: Condenses lengthy textbooks, research PDFs, and lecture slides into high-yield summaries.",
-          "Active Recall Quiz Generation: Instantly auto-generates multiple-choice and conceptual practice questions directly from notes.",
-          "Exam Calendar: Real-time exam countdowns, interactive scheduling, and daily task agenda.",
-          "Adaptive Study Planner: Dynamic AI study timetable that automatically rebalances study sessions based on pace and exam deadlines.",
-          "Weakness Tracker: Diagnostic topic-level mastery analytics and targeted revision prioritization.",
-          "Smart Note Organization: Keep all study materials organized by subject, class, and semester.",
-          "Universal Export Tools: Download summaries and quizzes as PDF or DOCX files for offline review."
-        ],
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.9",
-          "ratingCount": "148",
-          "bestRating": "5",
-          "worstRating": "1"
-        },
-        "review": [
-          {
-            "@type": "Review",
-            "author": {
-              "@type": "Person",
-              "name": "Sarah Lin"
-            },
-            "datePublished": "2026-08-20",
-            "reviewBody": "VelocityAI completely transformed my exam preparation. The active recall quizzes generated directly from lecture slides saved me dozens of study hours and boosted my retention.",
-            "reviewRating": {
-              "@type": "Rating",
-              "bestRating": "5",
-              "ratingValue": "5",
-              "worstRating": "1"
-            }
-          },
-          {
-            "@type": "Review",
-            "author": {
-              "@type": "Person",
-              "name": "David Miller"
-            },
-            "datePublished": "2026-08-28",
-            "reviewBody": "The adaptive study planner and weakness diagnostics kept me on track throughout exam season. Essential study tool for STEM students.",
-            "reviewRating": {
-              "@type": "Rating",
-              "bestRating": "5",
-              "ratingValue": "5",
-              "worstRating": "1"
-            }
-          }
-        ],
-        "offers": [
-          {
-            "@type": "Offer",
-            "name": "Free Tier",
-            "price": "0",
-            "priceCurrency": "USD",
-            "description": "5 Uploads/day, basic summarization, 3 quizzes/day."
-          },
-          {
-            "@type": "Offer",
-            "name": "Velocity Pro",
-            "price": "10",
-            "priceCurrency": "USD",
-            "description": "50 Uploads/day, priority processing, unlimited quizzes, CANA AI access."
-          },
-          {
-            "@type": "Offer",
-            "name": "Velocity Elite",
-            "price": "30",
-            "priceCurrency": "USD",
-            "description": "200 Uploads/day, expert summarization, unlimited quizzes, research mode."
-          }
-        ]
-      },
-      {
-        "@type": "Organization",
-        "@id": "https://velocityaisoftware.app/#organization",
-        "name": "Velocity AI",
-        "legalName": "VelocityAI Software",
-        "alternateName": ["VelocityAI", "Velocity-AI", "Velocity AI Software"],
-        "url": "https://velocityaisoftware.app",
-        "logo": "https://velocityaisoftware.app/pwa-512x512.png",
-        "sameAs": [
-          "https://www.linkedin.com/company/velocityai-software"
-        ]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://velocityaisoftware.app/#website",
-        "url": "https://velocityaisoftware.app/",
-        "name": "Velocity AI",
-        "alternateName": ["VelocityAI", "Velocity AI Software", "velocityaisoftware.app"]
-      }
-    ]
-  }
-  </script>
+  <!-- Structured Data for Google Search & Google AI Overview (minified for optimal code ratio) -->
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","@id":"https://velocityaisoftware.app/#software","name":"Velocity AI","alternateName":["VelocityAI","Velocity AI Software","velocityaisoftware.app"],"url":"https://velocityaisoftware.app","applicationCategory":"EducationalApplication","operatingSystem":"Web, iOS, Android, macOS, Windows","description":"VelocityAI is an AI-powered study engine that transforms textbooks, lecture slides, and academic PDFs into concise summaries, active recall quizzes, adaptive study schedules, and weakness diagnostic trackers.","screenshot":"https://velocityaisoftware.app/pwa-512x512.png","featureList":["AI Summarization: Condenses lengthy textbooks, research PDFs, and lecture slides into high-yield summaries.","Active Recall Quiz Generation: Instantly auto-generates multiple-choice and conceptual practice questions directly from notes.","Exam Calendar: Real-time exam countdowns, interactive scheduling, and daily task agenda.","Adaptive Study Planner: Dynamic AI study timetable that automatically rebalances study sessions based on pace and exam deadlines.","Weakness Tracker: Diagnostic topic-level mastery analytics and targeted revision prioritization.","Smart Note Organization: Keep all study materials organized by subject, class, and semester.","Universal Export Tools: Download summaries and quizzes as PDF or DOCX files for offline review."],"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.9","ratingCount":"148","bestRating":"5","worstRating":"1"},"review":[{"@type":"Review","author":{"@type":"Person","name":"Sarah Lin"},"datePublished":"2026-08-20","reviewBody":"VelocityAI completely transformed my exam preparation. The active recall quizzes generated directly from lecture slides saved me dozens of study hours and boosted my retention.","reviewRating":{"@type":"Rating","bestRating":"5","ratingValue":"5","worstRating":"1"}},{"@type":"Review","author":{"@type":"Person","name":"David Miller"},"datePublished":"2026-08-28","reviewBody":"The adaptive study planner and weakness diagnostics kept me on track throughout exam season. Essential study tool for STEM students.","reviewRating":{"@type":"Rating","bestRating":"5","ratingValue":"5","worstRating":"1"}}],"offers":[{"@type":"Offer","name":"Free Tier","price":"0","priceCurrency":"USD","description":"5 Uploads/day, basic summarization, 3 quizzes/day."},{"@type":"Offer","name":"Velocity Pro","price":"10","priceCurrency":"USD","description":"50 Uploads/day, priority processing, unlimited quizzes, CANA AI access."},{"@type":"Offer","name":"Velocity Elite","price":"30","priceCurrency":"USD","description":"200 Uploads/day, expert summarization, unlimited quizzes, research mode."}]},{"@type":"Organization","@id":"https://velocityaisoftware.app/#organization","name":"Velocity AI","legalName":"VelocityAI Software","alternateName":["VelocityAI","Velocity-AI","Velocity AI Software"],"url":"https://velocityaisoftware.app","logo":"https://velocityaisoftware.app/pwa-512x512.png","sameAs":["https://www.linkedin.com/company/velocityai-software"]},{"@type":"WebSite","@id":"https://velocityaisoftware.app/#website","url":"https://velocityaisoftware.app/","name":"Velocity AI","alternateName":["VelocityAI","Velocity AI Software","velocityaisoftware.app"]}]}</script>
 
-  <!-- Google Search & Browser Favicons (multiples of 48px square + SVG + ICO) -->
+  <!-- Favicons -->
   <link rel="icon" href="/favicon.ico" sizes="48x48" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
@@ -216,49 +75,295 @@
 
 <body>
   <div id="root">
-    <div class="min-h-screen">
+    <div class="min-h-screen bg-background text-foreground">
+      <!-- Semantic Navigation -->
       <nav class="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex justify-between h-16 items-center">
             <div class="flex items-center gap-8">
               <a href="/" class="flex items-center gap-2">
-                <span class="font-bold text-xl tracking-tight">Velocity AI</span>
+                <span class="font-bold text-xl tracking-tight text-foreground">Velocity AI</span>
               </a>
+              <div class="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+                <a href="#how-it-works" class="hover:text-foreground transition-colors">How It Works</a>
+                <a href="/features" class="hover:text-foreground transition-colors">Features</a>
+                <a href="/pricing" class="hover:text-foreground transition-colors">Pricing</a>
+                <a href="/faq" class="hover:text-foreground transition-colors">FAQ</a>
+                <a href="/blog" class="hover:text-foreground transition-colors">Blog</a>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <a href="/auth" class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-xl bg-primary text-primary-foreground">
-                Get Started
+            <div class="flex items-center gap-3">
+              <a href="/auth" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2">
+                Log in
+              </a>
+              <a href="/auth" class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
+                Get Started Free
               </a>
             </div>
           </div>
         </div>
       </nav>
-      <section class="relative min-h-screen flex items-center overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-primary/5"></div>
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
-          <div class="max-w-2xl">
-            <div class="space-y-8">
-              <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                <span>✨ Velocity AI — AI-Powered Learning</span>
-              </div>
-              <h1 class="text-5xl md:text-6xl font-bold leading-tight">
-                Velocity AI: Your Exam-Focused Study Engine
-              </h1>
-              <p class="text-xl text-muted-foreground">
-                Transform your notes into AI-powered summaries and quizzes. Velocity AI (VelocityAI) helps you learn faster and retain more with affordable AI study tools.
-              </p>
-              <div class="flex flex-wrap gap-4">
-                <a href="/auth" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium text-base">
-                  Get Started Free &rarr;
-                </a>
-                <a href="#how-it-works" class="inline-flex items-center justify-center px-6 py-3 rounded-lg border border-border text-foreground font-medium text-base">
-                  How It Works
-                </a>
-              </div>
+
+      <!-- Hero Section -->
+      <header class="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div class="max-w-7xl mx-auto">
+          <div class="max-w-3xl space-y-6">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium">
+              <span>✨ Velocity AI — AI-Powered Learning Engine</span>
+            </div>
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight text-foreground">
+              Velocity AI: Your Exam-Focused Study Engine
+            </h1>
+            <p class="text-lg sm:text-xl text-muted-foreground leading-relaxed">
+              Transform lecture notes, textbooks, research PDFs, and PowerPoint slides into clear AI summaries, active recall practice quizzes, and adaptive exam timetables. Velocity AI helps high-school, undergraduate, and graduate students study smarter, memorize key concepts faster, and master tough exam topics.
+            </p>
+            <div class="flex flex-wrap gap-4 pt-2">
+              <a href="/auth" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-sm hover:opacity-90 transition-opacity">
+                Get Started Free &rarr;
+              </a>
+              <a href="#how-it-works" class="inline-flex items-center justify-center px-6 py-3 rounded-xl border border-border text-foreground font-semibold text-base hover:bg-muted/50 transition-colors">
+                Explore How It Works
+              </a>
             </div>
           </div>
         </div>
-      </section>
+      </header>
+
+      <!-- Main Content Container for Maximum SEO Text Indexability -->
+      <main>
+        <!-- Section 1: How It Works -->
+        <section id="how-it-works" class="py-20 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/50">
+          <div class="max-w-6xl mx-auto space-y-12">
+            <div class="text-center space-y-4 max-w-2xl mx-auto">
+              <h2 class="text-3xl sm:text-4xl font-bold text-foreground">How Velocity AI Works</h2>
+              <p class="text-base sm:text-lg text-muted-foreground">
+                Three simple steps designed by cognitive researchers to replace passive rereading with evidence-based active recall.
+              </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <article class="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-3">
+                <div class="text-sm font-bold text-primary tracking-widest uppercase">Step 01</div>
+                <h3 class="text-xl font-semibold text-foreground">Upload Your Study Materials</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Upload textbooks, PDF documents, lecture slides, PowerPoint files (.pptx), handwritten lecture photos, or audio recordings. Velocity AI extracts raw text, tables, formulas, and diagrams seamlessly.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-3">
+                <div class="text-sm font-bold text-primary tracking-widest uppercase">Step 02</div>
+                <h3 class="text-xl font-semibold text-foreground">Generate AI Structured Summaries</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Our advanced AI engine distills complex technical material into textbook-grade chapter summaries, organized with verbatim definitions, formulas, key concepts, and exam takeaways in seconds.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-3">
+                <div class="text-sm font-bold text-primary tracking-widest uppercase">Step 03</div>
+                <h3 class="text-xl font-semibold text-foreground">Practice With Active Recall Quizzes</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Test your understanding with auto-generated multiple-choice questions, diagnostic topic tracking, and detailed explanations that reinforce long-term memory and eliminate test-day surprises.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 2: Core Platform Features -->
+        <section id="features" class="py-20 px-4 sm:px-6 lg:px-8 border-t border-border">
+          <div class="max-w-6xl mx-auto space-y-12">
+            <div class="text-center space-y-4 max-w-2xl mx-auto">
+              <h2 class="text-3xl sm:text-4xl font-bold text-foreground">Everything You Need to Ace Your Exams</h2>
+              <p class="text-base sm:text-lg text-muted-foreground">
+                Purpose-built AI tools designed specifically for students, medical aspirants, engineering majors, and academic researchers.
+              </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">AI Summarization</h3>
+                <p class="text-sm text-muted-foreground">
+                  Condenses lengthy textbooks, research PDFs, and lecture slides into high-yield summaries with key concepts, definitions, and equations highlighted.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Active Recall Quiz Generation</h3>
+                <p class="text-sm text-muted-foreground">
+                  Instantly auto-generates practice quizzes with multiple-choice questions and detailed explanations directly from uploaded notes.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Interactive Exam Calendar</h3>
+                <p class="text-sm text-muted-foreground">
+                  Real-time exam countdown timers, interactive deadline management, and automated daily study agenda alignment.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Adaptive Study Planner</h3>
+                <p class="text-sm text-muted-foreground">
+                  Dynamic AI study timetable that automatically balances and reschedules topics according to your study speed and exam deadlines.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Diagnostic Weakness Tracker</h3>
+                <p class="text-sm text-muted-foreground">
+                  Identifies specific knowledge gaps from your quiz attempts and prioritizes targeted revision before final examinations.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Smart Folder Organization</h3>
+                <p class="text-sm text-muted-foreground">
+                  Categorize study materials, notes, audio transcripts, and quiz histories by course, subject, and academic semester.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Universal Export Tools</h3>
+                <p class="text-sm text-muted-foreground">
+                  Export summaries, revision sheets, and practice quizzes as printable PDF or DOCX documents for offline and classroom review.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">CANA AI Conversational Tutor</h3>
+                <p class="text-sm text-muted-foreground">
+                  Ask deep conceptual questions about your study documents and receive step-by-step guidance and synthesized explanations.
+                </p>
+              </article>
+              <article class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Multilingual Learning</h3>
+                <p class="text-sm text-muted-foreground">
+                  Study, summarize, and quiz yourself across 18 languages including English, Hindi, Spanish, French, German, and Mandarin.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 3: In-Depth About Velocity AI & Cognitive Learning Science -->
+        <section class="py-20 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/30">
+          <div class="max-w-4xl mx-auto space-y-6 text-center">
+            <h2 class="text-3xl font-bold tracking-tight text-foreground">About Velocity AI</h2>
+            <p class="text-base sm:text-lg text-muted-foreground leading-relaxed text-left">
+              Velocity AI is an intelligent academic learning platform engineered to help students bridge the gap between note-taking and deep concept mastery. Traditional studying methods—such as rereading textbooks, highlighting paragraphs, and reviewing static summaries—create an illusion of competence. In contrast, cognitive psychology demonstrates that active retrieval practice and spaced repetition produce superior retention and exam performance.
+            </p>
+            <p class="text-base sm:text-lg text-muted-foreground leading-relaxed text-left">
+              By combining high-speed document extraction (PyMuPDF and optical character recognition) with Google Gemini AI models, Velocity AI automatically turns dense educational documents into structured study chapters and interactive testing quizzes. Whether preparing for high school finals, university midterms, medical licensing tests, or technical certifications, Velocity AI reduces preparation hours while maximizing retention.
+            </p>
+            <div class="pt-4 flex flex-wrap gap-4 justify-start">
+              <a href="/get-started" class="text-sm font-semibold text-primary hover:underline">New Student Onboarding Guide &rarr;</a>
+              <a href="/tutorials" class="text-sm font-semibold text-primary hover:underline">Interactive Study Tutorials &rarr;</a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 3b: Featured Articles & Internal Knowledge Network -->
+        <section class="py-16 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/30">
+          <div class="max-w-6xl mx-auto space-y-8">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div class="space-y-1">
+                <span class="text-xs font-bold text-primary uppercase">Learning Science</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-foreground">Featured Study Guides & Research</h2>
+              </div>
+              <a href="/blog" class="text-sm font-semibold text-primary hover:underline">All Articles &rarr;</a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+              <div class="p-5 rounded-2xl border border-border bg-card space-y-2">
+                <span class="text-xs text-muted-foreground">Cognitive Science</span>
+                <h3 class="font-bold text-base"><a href="/blog/how-velocityai-helps-users-retain-more-knowledge" class="hover:text-primary">How VelocityAI Aids Knowledge Retention</a></h3>
+                <p class="text-xs text-muted-foreground">Active recall vs rereading: why practice self-quizzing beats repetitive textbook highlighting.</p>
+              </div>
+              <div class="p-5 rounded-2xl border border-border bg-card space-y-2">
+                <span class="text-xs text-muted-foreground">Memory Research</span>
+                <h3 class="font-bold text-base"><a href="/blog/the-testing-effect-and-spaced-retrieval" class="hover:text-primary">The Testing Effect Explained</a></h3>
+                <p class="text-xs text-muted-foreground">How cognitive retrieval practice strengthens neural synaptic pathways under exam pressure.</p>
+              </div>
+              <div class="p-5 rounded-2xl border border-border bg-card space-y-2">
+                <span class="text-xs text-muted-foreground">EdTech Trends</span>
+                <h3 class="font-bold text-base"><a href="/blog/future-of-ai" class="hover:text-primary">The Future of AI in Education</a></h3>
+                <p class="text-xs text-muted-foreground">Adaptive learning, personalized feedback, and AI study workflows reshaping student outcomes.</p>
+              </div>
+              <div class="p-5 rounded-2xl border border-border bg-card space-y-2">
+                <span class="text-xs text-muted-foreground">Exam Tactics</span>
+                <h3 class="font-bold text-base"><a href="/blog/study-hacks-2026" class="hover:text-primary">Top 5 Study Hacks for 2026</a></h3>
+                <p class="text-xs text-muted-foreground">Actionable study habits to compress revision hours and boost academic performance.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 4: Frequently Asked Questions (FAQ) for Students & Search Engines -->
+        <section id="faq" class="py-20 px-4 sm:px-6 lg:px-8 border-t border-border">
+          <div class="max-w-4xl mx-auto space-y-10">
+            <div class="text-center space-y-3">
+              <h2 class="text-3xl font-bold text-foreground">Frequently Asked Questions</h2>
+              <p class="text-base text-muted-foreground">Common questions about Velocity AI features, pricing, and study workflows.</p>
+            </div>
+            <div class="space-y-6">
+              <div class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">What file formats does Velocity AI support?</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Velocity AI supports PDF documents, Microsoft PowerPoint presentations (.pptx), Word documents (.docx), plain text files (.txt), images (PNG, JPG) with text OCR, and audio lecture recordings. Read our <a href="/get-started" class="text-primary hover:underline">Getting Started Guide</a> for optimal scanning tips.
+                </p>
+              </div>
+              <div class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">How does the AI quiz generator create questions?</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Our AI examines the core terminology, definitions, formulas, and concepts extracted from your uploaded files and automatically creates multiple-choice practice quizzes. Each question includes four plausible answer choices and a detailed explanation of why the correct answer is right. Learn more in our <a href="/tutorials" class="text-primary hover:underline">Interactive Tutorials</a>.
+                </p>
+              </div>
+              <div class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">Is Velocity AI free to use?</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  Yes, Velocity AI offers a 100% Free Tier that includes 5 document uploads per day, basic text summarization, and 3 practice quizzes every day. Students needing higher volume can upgrade anytime on our <a href="/pricing" class="text-primary hover:underline">Plans & Pricing page</a>.
+                </p>
+              </div>
+              <div class="p-6 rounded-2xl border border-border bg-card space-y-2">
+                <h3 class="text-lg font-semibold text-foreground">How does the Adaptive Study Planner calculate my schedule?</h3>
+                <p class="text-sm text-muted-foreground leading-relaxed">
+                  You enter your exam date and subjects. The study planner calculates the days remaining, evaluates your daily target study minutes, breaks your curriculum down into focused study blocks, and dynamically adjusts whenever you complete or reschedule sessions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Semantic Footer -->
+      <footer class="border-t border-border bg-card py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div class="col-span-2 md:col-span-1 space-y-3">
+            <span class="text-lg font-semibold text-foreground">Velocity AI</span>
+            <p class="text-sm text-muted-foreground">
+              Intelligent study companion for automated summaries, active recall quizzes, and adaptive exam planning.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-semibold text-sm text-foreground">Features</h3>
+            <ul class="space-y-1.5 text-sm text-muted-foreground">
+              <li><a href="/features" class="hover:text-foreground">AI Summarization</a></li>
+              <li><a href="/features" class="hover:text-foreground">Quiz Generation</a></li>
+              <li><a href="/features" class="hover:text-foreground">Adaptive Planner</a></li>
+              <li><a href="/pricing" class="hover:text-foreground font-medium text-foreground">Plans & Pricing</a></li>
+            </ul>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-semibold text-sm text-foreground">Resources</h3>
+            <ul class="space-y-1.5 text-sm text-muted-foreground">
+              <li><a href="/get-started" class="hover:text-foreground font-medium text-foreground">Getting Started Guide</a></li>
+              <li><a href="/tutorials" class="hover:text-foreground">Tutorials</a></li>
+              <li><a href="/blog" class="hover:text-foreground">Study Blog</a></li>
+              <li><a href="/faq" class="hover:text-foreground">FAQ</a></li>
+              <li><a href="/help" class="hover:text-foreground">Help Center</a></li>
+            </ul>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-semibold text-sm text-foreground">Legal & Support</h3>
+            <ul class="space-y-1.5 text-sm text-muted-foreground">
+              <li><a href="/contact" class="hover:text-foreground">Contact Us</a></li>
+              <li><a href="/privacy" class="hover:text-foreground">Privacy Policy</a></li>
+              <li><a href="/terms" class="hover:text-foreground">Terms of Service</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="max-w-7xl mx-auto mt-8 pt-8 border-t border-border text-center text-xs text-muted-foreground">
+          <p>&copy; 2026 Velocity AI (VelocityAI Software). All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   </div>
   <script type="module" src="/src/main.tsx"></script>
